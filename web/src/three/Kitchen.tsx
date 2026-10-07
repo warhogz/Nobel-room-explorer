@@ -311,7 +311,7 @@ export function Kitchen() {
     const kTarget = s.mix.kitchen.enabled ? Math.min(1, s.mix.kitchen.intensity / kd) : 0
     live.light = approach(live.light, kTarget, dt, 2.2)
     floorUniforms.nikLight.value = live.light
-    // day: real interior HDRI (blurred backdrop + reflections); night: bronze room + dark gradient.
+    // Reflection pass: daylight HDRI or the night environment. The camera backdrop is composited separately.
     // The swap happens at the dimmest point of the transition, so it reads as lights going down / up.
     const L = live.light
     const ease = (x: number) => x * x * (3 - 2 * x)
@@ -335,6 +335,8 @@ export function Kitchen() {
     reflection.setSize(size.width * dpr, size.height * dpr)
     camera.updateMatrixWorld()
     reflection.update(gl, scene, camera, floor ? [floor] : [])
+    // Keep the HDRI in reflections and scene.environment, but hide it from the main camera.
+    scene.background = null
     floorUniforms.nikReflSharp.value = reflection.sharp.texture
     floorUniforms.nikReflBlur.value = reflection.blurred.texture
     floorUniforms.nikReflMatrix.value.copy(reflection.textureMatrix)
