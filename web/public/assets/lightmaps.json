@@ -1,0 +1,145 @@
+{
+ "rgbmRange": 16.0,
+ "samples": 1024,
+ "objects": {
+  "Table": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets/lm/Table_env.ktx2",
+     "scale": 4.342049469964664,
+     "p50": 0.22105865573883057,
+     "p99": 2.1916548916816714
+    },
+    "kitchen": {
+     "url": "assets/lm/Table_kitchen.ktx2",
+     "scale": 2.785131459655485,
+     "p50": 0.1529286531716585,
+     "p99": 4.193944295978546
+    },
+    "ostrov": {
+     "url": "assets/lm/Table_ostrov.ktx2",
+     "scale": 122.84736491968916,
+     "p50": 0.0,
+     "p99": 0.04193557928726077
+    }
+   },
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.03799406439065933,
+     "encoding": "sqrt",
+     "urls": [
+      "assets/lm/Table_pol_p0.ktx2",
+      "assets/lm/Table_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "Island": {
+   "size": 2048,
+   "groups": {
+    "env": {
+     "url": "assets/lm/Island_env.ktx2",
+     "scale": 4.71527244819647,
+     "p50": 0.20115676568672058,
+     "p99": 2.149336990618706
+    },
+    "kitchen": {
+     "url": "assets/lm/Island_kitchen.ktx2",
+     "scale": 3.216753926701571,
+     "p50": 0.1537620947897434,
+     "p99": 3.464522877407074
+    },
+    "ostrov": {
+     "url": "assets/lm/Island_ostrov.ktx2",
+     "scale": 0.5045992115637319,
+     "p50": 0.23167726391255852,
+     "p99": 7.37463572397232
+    }
+   },
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 2.6728386878967285,
+     "encoding": "sqrt",
+     "urls": [
+      "assets/lm/Island_pol_p0.ktx2",
+      "assets/lm/Island_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "Planters": {
+   "size": 256,
+   "groups": {
+    "env": {
+     "url": "assets/lm/Planters_env.ktx2",
+     "scale": 4.708045977011494,
+     "p50": 0.00825657964637503,
+     "p99": 2.119977281522751
+    },
+    "kitchen": {
+     "url": "assets/lm/Planters_kitchen.ktx2",
+     "scale": 3.3356315499720957,
+     "p50": 0.01625390659496188,
+     "p99": 3.4316289343833923
+    },
+    "ostrov": {
+     "url": "assets/lm/Planters_ostrov.ktx2",
+     "scale": 228.32389471610006,
+     "p50": 0.0,
+     "p99": 0.023968949478492138
+    }
+   },
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.0034677451476454735,
+     "encoding": "sqrt",
+     "urls": [
+      "assets/lm/Planters_pol_p0.ktx2",
+      "assets/lm/Planters_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "Floor": {
+   "size": 2048,
+   "groups": {
+    "env": {
+     "url": "assets/lm/Floor_env.ktx2",
+     "scale": 7.090594345066359,
+     "p50": 0.4139737823188305,
+     "p99": 1.4406982720375061
+    },
+    "kitchen": {
+     "url": "assets/lm/Floor_kitchen.ktx2",
+     "scale": 8.878612716763005,
+     "p50": 0.1500363621175289,
+     "p99": 1.200636556339264
+    },
+    "ostrov": {
+     "url": "assets/lm/Floor_ostrov.ktx2",
+     "scale": 146.17695167286246,
+     "p50": 0.0,
+     "p99": 0.012418435129756107
+    }
+   },
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.05236174166202545,
+     "encoding": "sqrt",
+     "urls": [
+      "assets/lm/Floor_pol_p0.ktx2",
+      "assets/lm/Floor_pol_p1.ktx2"
+     ]
+    }
+   }
+  }
+ },
+ "textures": {
+  "Material #-2147483589": "assets/tex/Material___2147483589_transl_11d3722d.ktx2"
+ }
+}

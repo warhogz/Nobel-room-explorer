@@ -1,0 +1,27 @@
+# Dependencies
+web/node_modules/
+
+# Generated files and local processing output
+build/
+web/dist/
+web/.vite/
+web/.vite-temp/
+web/.tmp/
+web/.bin/
+web_tmp/
+
+# Local logs and caches
+*.log
+**/__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+
+# Local editor and assistant settings
+.claude/
+.vscode/
+.idea/
+*.local
+
+# Workstation handoff notes can contain machine-specific paths and setup details
+HANDOFF.md
