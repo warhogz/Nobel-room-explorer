@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import type { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 
 export type GroupId = 'kitchen' | 'ostrov' | 'pol' | 'env'
 export const GROUPS: GroupId[] = ['kitchen', 'ostrov', 'pol', 'env']
@@ -17,11 +16,17 @@ export interface LightmapManifest {
     string,
     {
       size: number
+      /** KTX2 carries a mip chain (room atlases): sampled with trilinear filtering */
+      mipmaps?: boolean
       groups: Partial<Record<GroupId, { url: string; scale: number }>>
       perLight?: Partial<Record<GroupId, PerLightInfo>>
     }
   >
   textures?: Record<string, string>
+  /** per-vertex lightmaps (dense furniture): RGBM in the glTF attributes _NIKK (kitchen) / _NIKE (env) */
+  vertex?: { range: number; scales: Partial<Record<GroupId, number>>; objects: string[] }
+  /** download sizes (relative url -> bytes) for the preloader */
+  bytes?: Record<string, number>
 }
 
 export interface GroupMix {
@@ -143,10 +148,10 @@ export class LightmapMixer {
   }
 }
 
-export async function loadLightmapTexture(loader: KTX2Loader, url: string) {
-  const tex = await loader.loadAsync(url)
+export async function loadLightmapTexture(load: () => Promise<THREE.Texture>, mipmaps = false) {
+  const tex = await load()
   tex.colorSpace = THREE.NoColorSpace
-  tex.minFilter = THREE.LinearFilter
+  tex.minFilter = mipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter
   tex.magFilter = THREE.LinearFilter
   tex.generateMipmaps = false
   tex.flipY = false

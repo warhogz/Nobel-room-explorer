@@ -249,7 +249,60 @@ button { font: inherit; }
 .loader__brand { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; animation: rise 1s var(--ease-out) both; }
 .loader__bar { width: 180px; height: 3px; border-radius: 3px; background: rgba(244, 238, 231, 0.1); overflow: hidden; }
 .loader__bar span { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #f3c98f, #d99a5b); transform-origin: left; transition: transform 0.4s var(--ease-out); }
-.loader__hint { font-size: 12px; font-weight: 600; color: rgba(244, 238, 231, 0.45); }
+.loader__bar { width: 240px; }
+.loader__row { width: 240px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.loader__stage { font-size: 12px; font-weight: 700; color: rgba(244, 238, 231, 0.62); animation: rise 0.6s var(--ease-out) both; }
+.loader__pct { font-size: 12px; font-weight: 800; color: #f3c98f; font-variant-numeric: tabular-nums; }
+.loader__mb { font-size: 11px; font-weight: 600; color: rgba(244, 238, 231, 0.32); font-variant-numeric: tabular-nums; min-height: 14px; }
+/* the bar keeps breathing even while the main thread compiles shaders (compositor-only animation) */
+.loader__bar { position: relative; }
+.loader__bar::after {
+  content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 240, 220, 0.35), transparent);
+  transform: translateX(-100%); animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+/* ---------- walk mode ---------- */
+.walkbtn {
+  display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 16px 0 13px; border-radius: 999px; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--ink); background: var(--surface-strong); border: 1px solid var(--line);
+  backdrop-filter: blur(16px) saturate(140%); box-shadow: var(--shadow);
+  transition: transform 0.4s var(--ease-spring), background-color 0.9s, color 0.9s, border-color 0.4s;
+}
+.walkbtn:hover { transform: translateY(-1px); border-color: var(--accent); }
+.walkbtn:active { transform: scale(0.97); transition-duration: 0.15s; }
+.walkbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.walkbtn svg circle { fill: currentColor; stroke: none; }
+.walkbtn--on { color: var(--accent); border-color: var(--accent); }
+.walkhint {
+  position: absolute; left: 50%; bottom: 28px; z-index: 4; display: flex; gap: 14px; padding: 10px 16px; border-radius: 16px;
+  font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--surface-strong); border: 1px solid var(--line);
+  backdrop-filter: blur(16px); box-shadow: var(--shadow); white-space: nowrap;
+  opacity: 0; transform: translate(-50%, 14px); pointer-events: none;
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-spring);
+}
+.walkhint--on { opacity: 1; transform: translate(-50%, 0); transition-delay: 0.6s; }
+.walkhint--on.walkhint--quiet { opacity: 0.38; transition-delay: 0s; }
+.walkhint:hover { opacity: 1; }
+.walkhint span { display: flex; align-items: center; gap: 4px; }
+.walkhint kbd {
+  font: inherit; font-size: 11px; font-weight: 800; color: var(--ink); padding: 3px 7px; border-radius: 6px;
+  background: rgba(127, 110, 95, 0.16); border: 1px solid var(--line);
+}
+.joy {
+  position: absolute; left: 22px; bottom: 26px; z-index: 6; width: 120px; height: 120px; border-radius: 50%; touch-action: none;
+  background: radial-gradient(circle, rgba(255, 250, 244, 0.1), rgba(255, 250, 244, 0.04)); border: 1px solid var(--line);
+  backdrop-filter: blur(10px); display: grid; place-items: center;
+  opacity: 0; transform: scale(0.85); pointer-events: none; transition: opacity 0.5s var(--ease-out), transform 0.6s var(--ease-spring);
+}
+.joy--on { opacity: 1; transform: none; pointer-events: auto; }
+.joy span {
+  width: 48px; height: 48px; border-radius: 50%; background: var(--surface-strong); border: 1px solid var(--accent);
+  box-shadow: var(--shadow); transition: transform 0.25s var(--ease-spring);
+}
+.joy--active span { transition: none; }
+.app--walk .views button.active { color: var(--ink-2); }
+.app--walk .views__pill { opacity: 0; }
 
 /* ---------- dev (?dev) ---------- */
 .compare { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; z-index: 2; transition: opacity 0.5s; }
@@ -276,6 +329,10 @@ button { font: inherit; }
   .views button { padding: 10px 14px; font-size: 13px; }
   .views button:hover { transform: none; }
   .hint { display: none; }
+  .app--walk .views { opacity: 0; pointer-events: none; }
+  .walkhint { bottom: auto; top: 76px; font-size: 11px; gap: 10px; }
+  .walkbtn { height: 42px; }
+  .walkbtn span { display: none; }
   .finish { bottom: 16px; }
   .peek { display: none; }
   .views__compare { margin-top: 6px; justify-content: center; }

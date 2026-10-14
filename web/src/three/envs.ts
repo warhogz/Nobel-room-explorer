@@ -94,3 +94,26 @@ export function makeNightBackdrop() {
   t.mapping = THREE.EquirectangularReflectionMapping
   return t
 }
+
+/**
+ * Sky seen through the windows (equirectangular, linear): warm white horizon, pale blue zenith, darker ground.
+ * scene.backgroundIntensity scales it: high by day (blows out like the renders' windows), near black at night.
+ */
+export function makeSkyBackdrop() {
+  const c = document.createElement('canvas')
+  c.width = 4
+  c.height = 256
+  const g = c.getContext('2d')!
+  const grad = g.createLinearGradient(0, 0, 0, 256)
+  grad.addColorStop(0, '#9fb4cc')
+  grad.addColorStop(0.42, '#e9eef2')
+  grad.addColorStop(0.5, '#fff6ea')
+  grad.addColorStop(0.53, '#c9bba6')
+  grad.addColorStop(1, '#6d6152')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 4, 256)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.mapping = THREE.EquirectangularReflectionMapping
+  return t
+}

@@ -1,33 +1,95 @@
 {
  "rgbmRange": 16.0,
- "samples": 1024,
+ "samples": 1536,
  "objects": {
+  "Floor_Kitchen": {
+   "size": 2048,
+   "groups": {
+    "env": {
+     "url": "assets/lm/Floor_Kitchen_env.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.0037655195981729775,
+     "p99": 21.644196334838867
+    },
+    "kitchen": {
+     "url": "assets/lm/Floor_Kitchen_kitchen.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.0,
+     "p99": 0.4088679996848106
+    },
+    "ostrov": {
+     "url": "assets/lm/Floor_Kitchen_ostrov.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.0,
+     "p99": 0.019692433313280345
+    }
+   },
+   "mipmaps": false,
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.00014167319750413299,
+     "encoding": "sqrt",
+     "urls": [
+      "assets/lm/Floor_Kitchen_pol_p0.ktx2",
+      "assets/lm/Floor_Kitchen_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "LM_Atlas_01": {
+   "size": 2048,
+   "groups": {
+    "env": {
+     "url": "assets/lm/LM_Atlas_01_env.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.009252261173725128,
+     "p99": 15.672733750152588
+    },
+    "kitchen": {
+     "url": "assets/lm/LM_Atlas_01_kitchen.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 1.128470490075415e-05,
+     "p99": 0.32390985472798345
+    }
+   },
+   "mipmaps": true
+  },
   "Table": {
    "size": 1024,
    "groups": {
     "env": {
      "url": "assets/lm/Table_env.ktx2",
-     "scale": 4.342049469964664,
-     "p50": 0.22105865573883057,
-     "p99": 2.1916548916816714
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.007216116464696825,
+     "p99": 0.08663931119590998
     },
     "kitchen": {
      "url": "assets/lm/Table_kitchen.ktx2",
-     "scale": 2.785131459655485,
-     "p50": 0.1529286531716585,
-     "p99": 4.193944295978546
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.016482316677458583,
+     "p99": 0.33220605109930035
     },
     "ostrov": {
      "url": "assets/lm/Table_ostrov.ktx2",
-     "scale": 122.84736491968916,
-     "p50": 0.0,
-     "p99": 0.04193557928726077
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 3.4192880470072855e-05,
+     "p99": 0.07621197519674897
     }
    },
+   "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 0.03799406439065933,
+     "scale": 0.0024349973537027836,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Table_pol_p0.ktx2",
@@ -41,27 +103,31 @@
    "groups": {
     "env": {
      "url": "assets/lm/Island_env.ktx2",
-     "scale": 4.71527244819647,
-     "p50": 0.20115676568672058,
-     "p99": 2.149336990618706
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.004262322111707181,
+     "p99": 0.05921535249352455
     },
     "kitchen": {
      "url": "assets/lm/Island_kitchen.ktx2",
-     "scale": 3.216753926701571,
-     "p50": 0.1537620947897434,
-     "p99": 3.464522877407074
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.015486257936060429,
+     "p99": 0.2693415716350079
     },
     "ostrov": {
      "url": "assets/lm/Island_ostrov.ktx2",
-     "scale": 0.5045992115637319,
-     "p50": 0.23167726391255852,
-     "p99": 7.37463572397232
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.29933054002821446,
+     "p99": 7.705168932819366
     }
    },
+   "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 2.6728386878967285,
+     "scale": 0.006755379028618336,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Island_pol_p0.ktx2",
@@ -70,32 +136,56 @@
     }
    }
   },
+  "LM_Atlas_00": {
+   "size": 2048,
+   "groups": {
+    "env": {
+     "url": "assets/lm/LM_Atlas_00_env.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.005915175191685558,
+     "p99": 17.503617793271314
+    },
+    "kitchen": {
+     "url": "assets/lm/LM_Atlas_00_kitchen.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 1.907772366394056e-07,
+     "p99": 0.23577095777094365
+    }
+   },
+   "mipmaps": true
+  },
   "Planters": {
    "size": 256,
    "groups": {
     "env": {
      "url": "assets/lm/Planters_env.ktx2",
-     "scale": 4.708045977011494,
-     "p50": 0.00825657964637503,
-     "p99": 2.119977281522751
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.0,
+     "p99": 0.018720501605421307
     },
     "kitchen": {
      "url": "assets/lm/Planters_kitchen.ktx2",
-     "scale": 3.3356315499720957,
-     "p50": 0.01625390659496188,
-     "p99": 3.4316289343833923
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.001207067399984226,
+     "p99": 0.2463471816688776
     },
     "ostrov": {
      "url": "assets/lm/Planters_ostrov.ktx2",
-     "scale": 228.32389471610006,
-     "p50": 0.0,
-     "p99": 0.023968949478492138
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 6.329400886397707e-06,
+     "p99": 0.03004316150471568
     }
    },
+   "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 0.0034677451476454735,
+     "scale": 2.1764428311144002e-05,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Planters_pol_p0.ktx2",
@@ -104,42 +194,84 @@
     }
    }
   },
-  "Floor": {
+  "Floor_Hall": {
    "size": 2048,
    "groups": {
     "env": {
-     "url": "assets/lm/Floor_env.ktx2",
-     "scale": 7.090594345066359,
-     "p50": 0.4139737823188305,
-     "p99": 1.4406982720375061
+     "url": "assets/lm/Floor_Hall_env.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 0.008345651154220105,
+     "p99": 20.997247024917602
     },
     "kitchen": {
-     "url": "assets/lm/Floor_kitchen.ktx2",
-     "scale": 8.878612716763005,
-     "p50": 0.1500363621175289,
-     "p99": 1.200636556339264
-    },
-    "ostrov": {
-     "url": "assets/lm/Floor_ostrov.ktx2",
-     "scale": 146.17695167286246,
-     "p50": 0.0,
-     "p99": 0.012418435129756107
+     "url": "assets/lm/Floor_Hall_kitchen.ktx2",
+     "scale": 16.0,
+     "encoding": "rgb9e5",
+     "p50": 1.2321274303758402e-06,
+     "p99": 0.41097415756269473
     }
    },
-   "perLight": {
-    "pol": {
-     "count": 8,
-     "scale": 0.05236174166202545,
-     "encoding": "sqrt",
-     "urls": [
-      "assets/lm/Floor_pol_p0.ktx2",
-      "assets/lm/Floor_pol_p1.ktx2"
-     ]
-    }
-   }
+   "mipmaps": true
   }
  },
+ "vertex": {
+  "range": 16.0,
+  "scales": {
+   "kitchen": 2.9630953931233006,
+   "env": 0.6118932692728519
+  },
+  "objects": [
+   "VX_09",
+   "VX_01",
+   "VX_03",
+   "VX_04",
+   "VX_08",
+   "VX_02",
+   "VX_00",
+   "VX_07",
+   "VX_05",
+   "VX_06"
+  ]
+ },
  "textures": {
-  "Material #-2147483589": "assets/tex/Material___2147483589_transl_11d3722d.ktx2"
+  "Material #-2147483589": "assets/tex/Material___2147483589_M5735_transl_11d3722d.ktx2",
+  "Material #2147483633": "assets/tex/Material__2147483633_M15199_transl_9823e75e.ktx2",
+  "Material #-2147483421": "assets/tex/Material___2147483421_M19921_transl_11d3722d.ktx2",
+  "perf_mask": "assets/tex/perf_mask.ktx2"
+ },
+ "bytes": {
+  "assets/scene.glb": 165915300,
+  "assets/chandelier.glb": 1084896,
+  "assets/lm/Floor_Kitchen_env.ktx2": 8914755,
+  "assets/lm/Floor_Kitchen_kitchen.ktx2": 3967174,
+  "assets/lm/Floor_Kitchen_ostrov.ktx2": 4048296,
+  "assets/lm/Floor_Kitchen_pol_p0.ktx2": 696216,
+  "assets/lm/Floor_Kitchen_pol_p1.ktx2": 654357,
+  "assets/lm/LM_Atlas_01_env.ktx2": 12326679,
+  "assets/lm/LM_Atlas_01_kitchen.ktx2": 9325785,
+  "assets/lm/Table_env.ktx2": 1994136,
+  "assets/lm/Table_kitchen.ktx2": 1372723,
+  "assets/lm/Table_ostrov.ktx2": 2262452,
+  "assets/lm/Table_pol_p0.ktx2": 212150,
+  "assets/lm/Table_pol_p1.ktx2": 214468,
+  "assets/lm/Island_env.ktx2": 12938291,
+  "assets/lm/Island_kitchen.ktx2": 10655928,
+  "assets/lm/Island_ostrov.ktx2": 10591002,
+  "assets/lm/Island_pol_p0.ktx2": 1359954,
+  "assets/lm/Island_pol_p1.ktx2": 1337828,
+  "assets/lm/LM_Atlas_00_env.ktx2": 11979631,
+  "assets/lm/LM_Atlas_00_kitchen.ktx2": 8359202,
+  "assets/lm/Planters_env.ktx2": 152277,
+  "assets/lm/Planters_kitchen.ktx2": 176766,
+  "assets/lm/Planters_ostrov.ktx2": 160337,
+  "assets/lm/Planters_pol_p0.ktx2": 34043,
+  "assets/lm/Planters_pol_p1.ktx2": 35984,
+  "assets/lm/Floor_Hall_env.ktx2": 12102254,
+  "assets/lm/Floor_Hall_kitchen.ktx2": 7502836,
+  "assets/tex/Material___2147483589_M5735_transl_11d3722d.ktx2": 11880848,
+  "assets/tex/Material__2147483633_M15199_transl_9823e75e.ktx2": 388026,
+  "assets/tex/Material___2147483421_M19921_transl_11d3722d.ktx2": 3197216,
+  "assets/tex/perf_mask.ktx2": 1997
  }
 }

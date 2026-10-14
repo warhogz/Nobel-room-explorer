@@ -1,4 +1,3 @@
-import { useProgress } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Bloom, EffectComposer, SMAA } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
@@ -10,6 +9,9 @@ import { FloorLamps } from './three/FloorLamps'
 import { Kitchen } from './three/Kitchen'
 import { GROUPS } from './three/lightmix'
 import { live } from './three/live'
+import { WalkControls } from './three/Walk'
+import { STAGE_LABEL, STAGE_SPAN, useLoad } from './loading'
+import { Joystick, WalkButton, WalkHint } from './ui/WalkUI'
 import { FINISHES, GROUP_LABELS, PRESETS, useStore, type PresetId } from './store'
 import { CompareRender, RenderPeek } from './ui/Compare'
 import './App.css'
@@ -29,17 +31,54 @@ function PostFX() {
   )
 }
 
+/**
+ * Honest preloader: bytes of every file, then decoding, shader compilation and the first lit frames. The scene is
+ * revealed only when it can be shown at full quality (no black frames, no pop-in).
+ */
 function Loader() {
-  const { progress, active } = useProgress()
-  const introDone = useStore((s) => s.introDone)
-  const hidden = !active && progress >= 100
+  const stage = useLoad((s) => s.stage)
+  const bar = useRef<HTMLSpanElement>(null)
+  const pct = useRef<HTMLSpanElement>(null)
+  const mb = useRef<HTMLSpanElement>(null)
+  const [gone, setGone] = useState(false)
+  useEffect(() => {
+    let raf = 0
+    let shown = 0
+    const tick = () => {
+      const { stage, loaded, total, stageSince } = useLoad.getState()
+      const [a, b] = STAGE_SPAN[stage]
+      let target: number
+      if (stage === 'download') target = a + (b - a) * (total ? loaded / total : 0)
+      else if (stage === 'ready') target = 1
+      // stages without a measurable size: creep towards (never reach) their end until they really finish
+      else target = a + (b - a) * 0.9 * (1 - Math.exp(-(performance.now() - stageSince) / 2500))
+      shown = Math.max(shown, shown + (target - shown) * 0.12)
+      if (bar.current) bar.current.style.transform = `scaleX(${Math.max(0.02, shown)})`
+      if (pct.current) pct.current.textContent = `${Math.floor(shown * 100)}%`
+      if (mb.current) mb.current.textContent = total ? `${(loaded / 2 ** 20).toFixed(0)} / ${(total / 2 ** 20).toFixed(0)} MB` : ''
+      if (stage !== 'ready' || shown < 0.999) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  useEffect(() => {
+    if (stage !== 'ready') return
+    const t = setTimeout(() => setGone(true), 1600)
+    return () => clearTimeout(t)
+  }, [stage])
   return (
-    <div className={`loader ${hidden ? 'loader--hidden' : ''} ${introDone ? 'loader--gone' : ''}`}>
+    <div className={`loader ${stage === 'ready' ? 'loader--hidden' : ''} ${gone ? 'loader--gone' : ''}`}>
       <div className="loader__brand">Nobel Island Kitchen</div>
       <div className="loader__bar">
-        <span style={{ transform: `scaleX(${Math.max(0.04, progress / 100)})` }} />
+        <span ref={bar} />
       </div>
-      <div className="loader__hint">{progress > 0 ? `Loading scene · ${Math.round(progress)}%` : 'Loading scene'}</div>
+      <div className="loader__row">
+        <span className="loader__stage" key={stage}>
+          {STAGE_LABEL[stage]}
+        </span>
+        <span ref={pct} className="loader__pct" />
+      </div>
+      <span ref={mb} className="loader__mb" />
     </div>
   )
 }
@@ -77,12 +116,12 @@ function Tooltip() {
   )
 }
 
-/** single lights switch: on = bright gallery space, off = dark room */
+/** day / evening: sunlight through the clerestory windows vs the interior lights alone */
 function LightSwitch() {
-  const on = useStore((s) => s.mix.kitchen.enabled)
-  const toggle = useStore((s) => s.toggleLights)
+  const on = useStore((s) => s.day)
+  const toggle = useStore((s) => s.toggleDay)
   return (
-    <button className={`switch ${on ? 'switch--on' : ''}`} onClick={toggle} aria-pressed={on} aria-label="Toggle lights">
+    <button className={`switch ${on ? 'switch--on' : ''}`} onClick={toggle} aria-pressed={on} aria-label="Toggle daylight">
       <span className="switch__track">
         <span className="switch__knob">
           <svg viewBox="0 0 24 24" aria-hidden>
@@ -96,7 +135,7 @@ function LightSwitch() {
           </svg>
         </span>
       </span>
-      <span className="switch__label">{on ? 'Lights on' : 'Lights off'}</span>
+      <span className="switch__label">{on ? 'Day' : 'Evening'}</span>
     </button>
   )
 }
@@ -224,6 +263,7 @@ function UI() {
   const introDone = useStore((s) => s.introDone)
   const focus = useStore((s) => s.focus)
   const compareOn = useStore((s) => s.compareOn)
+  const mode = useStore((s) => s.mode)
   const ready = introDone ? 'ui--on' : ''
   return (
     <>
@@ -232,17 +272,17 @@ function UI() {
       <Tooltip />
       <header className={`brand ${ready}`}>
         <div className="brand__title">Nobel Island Kitchen</div>
-        <div className="brand__sub">Onyx island · Interactive scene</div>
+        <div className="brand__sub">Onyx island · Villa kitchen & hall</div>
       </header>
       <div className={`top-right ${ready}`}>
-        <span className="chip" title="The source file only contains the island and table; the room follows with the full scene">
-          Pilot · island only
-        </span>
+        <WalkButton />
         <LightSwitch />
       </div>
+      <WalkHint />
+      <Joystick />
       <Views />
       <FinishPicker />
-      <footer className={`hint ${introDone && !focus && !compareOn ? 'ui--on' : ''}`}>
+      <footer className={`hint ${introDone && !focus && !compareOn && mode === 'orbit' ? 'ui--on' : ''}`}>
         <span><kbd>Drag</kbd> orbit</span>
         <span><kbd>Scroll</kbd> zoom</span>
         <span><kbd>Click</kbd> floor lights · faucet</span>
@@ -252,10 +292,11 @@ function UI() {
 }
 
 export default function App() {
-  // UI theme follows the space: lights on -> bright gallery, off -> dark room
-  const bright = useStore((s) => s.mix.kitchen.enabled && s.mix.kitchen.intensity > 0.1)
+  // UI theme follows the daylight
+  const bright = useStore((s) => s.day)
+  const walking = useStore((s) => s.mode === 'walk')
   return (
-    <div className={`app ${bright ? 'app--light' : ''}`}>
+    <div className={`app ${bright ? 'app--light' : ''} ${walking ? 'app--walk' : ''}`}>
       <Canvas
         dpr={[1, 2]}
         gl={{ antialias: false, alpha: true, toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: 'high-performance' }}
@@ -270,6 +311,7 @@ export default function App() {
           <Kitchen />
           <FloorLamps />
           <CameraRig />
+          <WalkControls />
           <PostFX />
         </Suspense>
       </Canvas>

@@ -14,8 +14,6 @@ interface Fixture {
 }
 
 const LENS_ON = new THREE.Color(1.0, 0.78, 0.52)
-const ringGeo = new THREE.RingGeometry(0.03, 0.042, 48).rotateX(-Math.PI / 2)
-const lensGeo = new THREE.CircleGeometry(0.03, 48).rotateX(-Math.PI / 2)
 const ledGeo = new THREE.CircleGeometry(0.013, 32).rotateX(-Math.PI / 2)
 const haloGeo = new THREE.PlaneGeometry(0.42, 0.42).rotateX(-Math.PI / 2)
 const hitGeo = new THREE.CircleGeometry(0.12, 24).rotateX(-Math.PI / 2)
@@ -46,7 +44,7 @@ function circuitLabel() {
   return { label: 'Floor lights', hint: on ? 'Click to turn off' : 'Click to turn on' }
 }
 
-/** One recessed floor uplight: bronze trim ring + frosted lens + LED hot spot (bloom). */
+/** One recessed floor uplight: LED hot spot (bloom) + soft light pool, hover/click target. */
 function Lamp({ f }: { f: Fixture }) {
   const toggleAll = useStore((s) => s.toggleAllLamps)
   const setHover = useStore((s) => s.setHover)
@@ -84,8 +82,7 @@ function Lamp({ f }: { f: Fixture }) {
   return (
     <group ref={group} position={[f.position[0], 0.0012, f.position[2]]}>
       <mesh geometry={haloGeo} material={mats.halo} position-y={0.0006} renderOrder={1} />
-      <mesh geometry={ringGeo} material={mats.ring} />
-      <mesh geometry={lensGeo} material={mats.lens} position-y={-0.0004} />
+      {/* the real fixture (trim + lens) is part of the scene; here only the LED hot spot and the light pool */}
       <mesh geometry={ledGeo} material={mats.led} position-y={0.0001} />
       <mesh
         geometry={hitGeo}

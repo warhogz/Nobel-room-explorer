@@ -29,12 +29,12 @@ export interface CoronaTMParams {
 
 export const CORONA_DEFAULTS: CoronaTMParams = {
   exposureEV: 2.253,
-  calibrationEV: -0.6,
+  calibrationEV: 0.0,
   userEV: 0,
   whiteBalanceK: 6300,
   contrast: 2.0,
   contrastK: 0.12,
-  saturation: 0,
+  saturation: -0.18, // the converted light tints read more saturated than Corona's
   vignette: 1.0,
   vignetteK: 0.35,
   richShadows: 0.9,
@@ -83,7 +83,7 @@ vec3 tonemap(vec3 c) {
 }
 
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-  // Tone map only the scene; the neutral backdrop is added in display-linear space.
+  // the backdrop (HDRI by day, dark gradient by night) is part of the scene now: tone map everything
   vec3 c = tonemap(inputColor.rgb * mix(1.0, dayExposure, lightMode));
   vec2 d = (uv - 0.5) * 2.0;
   c *= max(0.0, 1.0 - vignette * dot(d, d) * 0.5);
@@ -93,11 +93,6 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   vec3 sc = toSrgb(c);
   float gAmt = grain * (1.15 - 0.5 * dot(sc, vec3(0.333)));
   c = toLin(clamp(sc + (n - 0.5) * gAmt, 0.0, 1.0));
-  // The floor fades through coverage alpha. Composite a clean studio background after
-  // the scene grade, so exposure, vignette and HDRI features cannot darken the backdrop.
-  float coverage = clamp(inputColor.a, 0.0, 1.0);
-  vec3 backdrop = mix(toLin(vec3(0.047, 0.039, 0.031)), toLin(vec3(0.965, 0.953, 0.933)), lightMode);
-  c += backdrop * (1.0 - coverage);
   outputColor = vec4(c, 1.0);
 }
 `

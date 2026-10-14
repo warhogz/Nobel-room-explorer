@@ -2,31 +2,33 @@ import { create } from 'zustand'
 import { CORONA_DEFAULTS, type CoronaTMParams } from './three/CoronaToneMapping'
 import type { GroupId, GroupMix } from './three/lightmix'
 
-export type PresetId = '030' | '08' | '10' | '12'
+export type PresetId = '030' | '08' | '10' | '12' | '28'
 
 export const PRESETS: { id: PresetId; label: string; ref: string }[] = [
   { id: '030', label: 'Overview', ref: 'ref/030.jpg' },
   { id: '10', label: 'Island & table', ref: 'ref/10.jpg' },
   { id: '08', label: 'Table side', ref: 'ref/08.jpg' },
   { id: '12', label: 'Island front', ref: 'ref/12.jpg' },
+  { id: '28', label: 'Dining hall', ref: 'ref/28.jpg' },
 ]
 
 export const GROUP_LABELS: Record<GroupId, string> = {
-  kitchen: 'Kitchen lights',
+  kitchen: 'Interior lights',
   ostrov: 'Onyx glow',
   pol: 'Floor lights',
-  env: 'Bounce light',
+  env: 'Daylight',
 }
 
 /**
- * LightMix defaults: colours follow the Corona LightMix groups (TOCHKI KUHNA ~3200K / OSTROV / TOCHKI POL);
- * intensities calibrated by eye against render 030 (the scene's own lights are not in the .max file).
+ * LightMix defaults. The Corona LightMix colours/intensities of the villa scene are already baked into the
+ * lights (kitchen = every artificial light, env = suns + sky); these are master faders calibrated by eye.
  */
 export const MIX_DEFAULTS: Record<GroupId, GroupMix> = {
-  kitchen: { color: [1.0, 0.72, 0.47], intensity: 0.3, enabled: true },
-  ostrov: { color: [1.0, 0.6, 0.33], intensity: 1.3, enabled: true },
-  pol: { color: [1.0, 0.774, 0.505], intensity: 2.6, enabled: true },
-  env: { color: [1.0, 1.0, 1.0], intensity: 0.3, enabled: true },
+  // the blackbody/LightMix tints of the converted lights come out more saturated than in Corona: cooled a little
+  kitchen: { color: [0.8, 0.96, 1.25], intensity: 6.0, enabled: true },
+  ostrov: { color: [1.0, 0.6, 0.33], intensity: 3.0, enabled: true },
+  pol: { color: [1.0, 1.0, 1.0], intensity: 100.0, enabled: true },
+  env: { color: [1.0, 1.0, 1.0], intensity: 0.1, enabled: true },
 }
 
 export type FaucetFinish = 'black' | 'brass' | 'beige'
@@ -52,6 +54,12 @@ interface State {
   compare: { on: boolean; opacity: number }
   dev: boolean
   lamps: boolean[]
+  /** daylight through the windows (sun + sky) vs evening */
+  day: boolean
+  /** orbit around the island, or walk the room in first person */
+  mode: 'orbit' | 'walk'
+  setMode: (m: 'orbit' | 'walk') => void
+  toggleDay: () => void
   finish: FaucetFinish
   focus: 'faucet' | null
   hover: HoverInfo | null
@@ -75,15 +83,19 @@ interface State {
 }
 
 export const useStore = create<State>((set) => ({
-  preset: '030',
+  preset: '10',
   presetNonce: 0,
   introDone: false,
   mix: structuredClone(MIX_DEFAULTS),
   tm: { ...CORONA_DEFAULTS },
-  envIntensity: 0.6,
+  envIntensity: 1.0,
   compare: { on: false, opacity: 0.5 },
   dev: new URLSearchParams(location.search).has('dev'),
   lamps: Array(8).fill(true),
+  day: true,
+  toggleDay: () => set((s) => ({ day: !s.day })),
+  mode: 'orbit',
+  setMode: (m) => set((s) => (m === 'walk' ? { mode: m, preset: null, focus: null, compareOn: false, hover: null } : { mode: m, presetNonce: s.presetNonce })),
   finish: 'black',
   focus: null,
   hover: null,
@@ -99,7 +111,7 @@ export const useStore = create<State>((set) => ({
   setFinish: (f) => set({ finish: f }),
   setFocus: (f) => set((s) => ({ focus: f, compareOn: f ? false : s.compareOn })),
   setHover: (h) => set({ hover: h }),
-  goTo: (p) => set((s) => ({ preset: p, presetNonce: s.presetNonce + 1, focus: null, hover: null })),
+  goTo: (p) => set((s) => ({ preset: p, presetNonce: s.presetNonce + 1, focus: null, hover: null, mode: 'orbit' })),
   freeLook: () => set({ preset: null, compareOn: false }),
   setIntroDone: () => set({ introDone: true }),
   setMix: (g, m) => set((s) => ({ mix: { ...s.mix, [g]: { ...s.mix[g], ...m } } })),
