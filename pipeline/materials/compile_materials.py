@@ -88,9 +88,25 @@ def cc_op(p):
           "mode": p.get("lightnessMode", 0), "bright": p.get("brightness", 0.0), "contrast": p.get("contrast", 0.0),
           "gain": p.get("gainRGB", 100.0), "gamma": p.get("gammaRGB", 1.0), "pivot": p.get("pivotRGB", 1.0),
           "lift": p.get("liftRGB", 0.0)}
-    if any(p.get(k) for k in ("enableR", "enableG", "enableB")):
-        warn("per-channel colour correction ignored")
+    # advanced lightness: enabled channels add their own gain / gamma / pivot / lift on top of the RGB master
+    ch = []
+    for c in "RGB":
+        on = p.get("enable" + c)
+        ch.append({"gain": (p.get("gain" + c, 100.0) if on else 100.0), "gamma": (p.get("gamma" + c, 1.0) if on else 1.0),
+                   "pivot": (p.get("pivot" + c, 1.0) if on else 1.0), "lift": (p.get("lift" + c, 0.0) if on else 0.0)})
+    if any(p.get("enable" + c) for c in "RGB") and op["mode"] == 1:
+        op["ch"] = ch
     return op
+
+
+def corona_cc_op(p):
+    """CoronaColorCorrect: exposure (EV), tint, saturation (-1..1), contrast (1 = none), gamma, brightness, invert"""
+    t = col_lin(p.get("tint")) if p.get("tint") else [1.0, 1.0, 1.0]
+    if (p.get("temperature") or 6500) != 6500 or p.get("hue") or p.get("curveEnabled") or p.get("lutEnable"):
+        warn("CoronaColorCorrect: temperature / hue / curves / LUT ignored")
+    return {"t": "ccc", "exposure": p.get("exposure", 0.0) or 0.0, "tint": t, "sat": p.get("saturation", 0.0) or 0.0,
+            "contrast": p.get("contrast", 1.0), "gamma": p.get("gamma", 1.0) or 1.0, "bright": p.get("brightness", 0.0) or 0.0,
+            "invert": bool(p.get("invert"))}
 
 
 def resolve(v, ops=(), depth=0):
@@ -108,17 +124,31 @@ def resolve(v, ops=(), depth=0):
         return {"file": ntpath.basename(fn), "ops": list(ops), "uv": uv_of_bitmap(e), "level": lvl}
     if c in ("Color_Correction", "CoronaColorCorrect"):
         if c == "CoronaColorCorrect":
-            warn("CoronaColorCorrect treated as pass-through")
-            return resolve(p.get("texmap") or p.get("inputTexmap"), ops, depth + 1)
+            return resolve(p.get("texmap") or p.get("inputTexmap"), [corona_cc_op(p)] + list(ops), depth + 1)
         return resolve(p.get("map"), [cc_op(p)] + list(ops), depth + 1)
     if c == "CompositeTexturemap":
         maps, en = p.get("mapList") or [], p.get("mapEnabled") or []
-        for i, m in enumerate(maps):
-            if m and (i >= len(en) or en[i]):
-                if len(maps) > 1:
-                    warn("Composite '%s': using only layer %d" % (e.get("name"), i))
-                return resolve(m, ops, depth + 1)
-        return None
+        opac, modes = p.get("opacity") or [], p.get("blendMode") or []
+        layers = [(i, m) for i, m in enumerate(maps) if m and (i >= len(en) or en[i])]
+        if not layers:
+            return None
+        if len(layers) >= 2:
+            # bottom layer + the top bitmap in Normal mode at some opacity = their blend (e.g. a colour with 80 % fabric)
+            (_, bottom), (ti, top) = layers[0], layers[-1]
+            b, t = resolve(bottom, (), depth + 1), resolve(top, (), depth + 1)
+            a = (opac[ti] if ti < len(opac) else 100.0) / 100.0
+            mode = modes[ti] if ti < len(modes) else 0
+            if t and "file" in t and mode == 0:
+                t = dict(t, ops=list(t["ops"]) + list(ops))
+                if a < 0.999 and b and "color" in b:
+                    t["mix"] = (b["color"], a)
+                elif a < 0.5 and b and "file" in b:  # a faint overlay on another texture: the bottom one reads
+                    return dict(b, ops=list(b["ops"]) + list(ops))
+                elif a < 0.999:
+                    warn("Composite '%s': top layer %.0f%% over a non-colour layer baked as 100%%" % (e.get("name"), a * 100))
+                return t
+            warn("Composite '%s': using only layer %d" % (e.get("name"), layers[0][0]))
+        return resolve(layers[0][1], ops, depth + 1)
     if c in ("Mix", "Falloff", "falloff"):
         return resolve(p.get("map1"), ops, depth + 1) or ({"color": col_lin(p.get("color1"))} if p.get("color1") else None)
     if c == "CoronaMix":
@@ -146,6 +176,19 @@ def lum(x):
 
 
 def apply_cc(x, op):
+    if op.get("t") == "ccc":
+        if op["invert"]:
+            x = np.clip(1.0 - x, 0, None)
+        x = x * (2.0 ** op["exposure"]) * np.array(op["tint"], np.float32)
+        if op["sat"]:
+            L = lum(x)
+            x = np.clip(L + (x - L) * (1 + op["sat"]), 0, None)
+        c = op["contrast"]
+        if c is not None and abs(c - 1.0) > 1e-4:
+            x = np.clip((x - 0.18) * c + 0.18, 0, None)  # around mid grey (linear)
+        if abs(op["gamma"] - 1.0) > 1e-4:
+            x = np.power(np.clip(x, 0, None), 1.0 / op["gamma"])
+        return np.clip(x + op["bright"], 0, None)
     if op["rewire"] == 1:
         x = np.repeat(lum(x), 3, axis=-1)
     elif op["rewire"] == 2:
@@ -162,10 +205,14 @@ def apply_cc(x, op):
         L = lum(x)
         x = np.clip(L + (x - L) * (1 + op["sat"] / 100.0), 0, None)
     if op["mode"] == 1:
-        x = x * (op["gain"] / 100.0)
-        piv = op["pivot"] or 1.0
-        x = piv * np.power(np.clip(x / piv, 0, None), 1.0 / max(op["gamma"], 1e-3))
-        x = x + op["lift"]
+        ch = op.get("ch") or [{"gain": 100.0, "gamma": 1.0, "pivot": 1.0, "lift": 0.0}] * 3
+        out = []
+        for i, c in enumerate(ch):
+            v = x[..., i] * (op["gain"] / 100.0) * (c["gain"] / 100.0)
+            piv = (op["pivot"] or 1.0) * (c["pivot"] or 1.0)
+            g = max(op["gamma"] * c["gamma"], 1e-3)
+            out.append(piv * np.power(np.clip(v / piv, 0, None), 1.0 / g) + op["lift"] + c["lift"])
+        x = np.stack(out, axis=-1)
     else:
         if op["contrast"]:
             x = (x - 0.5) * (1 + op["contrast"] / 100.0) + 0.5
@@ -210,17 +257,22 @@ def tex_name(stem, spec, extra=""):
     return "%s_%s.png" % (stem, h)
 
 
-def emit_color(spec, stem, size, alpha=None):
-    """baked colour texture (sRGB PNG). returns (filename, uv) or (None, None) if missing"""
-    name = tex_name(stem, spec, alpha and alpha.get("file"))
+def emit_color(spec, stem, size, alpha=None, mix=None):
+    """baked colour texture (sRGB PNG). returns (filename, uv) or (None, None) if missing.
+    mix = (flat linear colour, map amount): Corona blends the map with the material colour by its amount"""
+    name = tex_name(stem, spec, [alpha and alpha.get("file"), mix])
     a = load_lin(spec["file"], size)
     if a is None:
         warn("missing texture %s" % spec["file"])
         return None, None
     x = np.power(a, MAX_GAMMA)
+    if spec.get("mix"):  # composite: colour layer under the bitmap (before the colour corrections around it)
+        x = np.array(spec["mix"][0], np.float32) * (1 - spec["mix"][1]) + x * spec["mix"][1]
     for op in spec["ops"]:
         x = apply_cc(x, op)
     x = x * spec.get("level", 1.0)
+    if mix is not None:
+        x = np.array(mix[0], np.float32) * (1 - mix[1]) + x * mix[1]
     x, uv = rotate_for_uv(x, spec["uv"])
     rgb = (srgb_encode(x) * 255 + 0.5).astype(np.uint8)
     if alpha:
@@ -328,10 +380,9 @@ def compile_physical(e, size):
     m["baseColor"] = [c * level for c in col_lin(p.get("baseColor"))]
     if base and "file" in base:
         amt = (p.get("baseMapAmount", 100.0) or 0) / 100.0
-        if amt < 0.999:
-            warn("%s: base map amount %.0f%% baked as 100%%" % (m["name"], amt * 100))
         m["baseColorTex"], m["uv"] = emit_color(base, stem + "_base", size,
-                                               alpha=op if op and "file" in op else None)
+                                               alpha=op if op and "file" in op else None,
+                                               mix=(col_lin(p.get("baseColor")), amt) if amt < 0.999 else None)
         m["baseColor"] = [level] * 3
     elif base and "color" in base:
         m["baseColor"] = [c * level for c in base["color"]]
@@ -405,8 +456,9 @@ def compile_legacy(e, size):
         m["baseColor"] = [c * lr for c in col_lin(p.get("colorReflect"))]
         m["metallic"] = 1.0
         rt_ = resolve(p.get("texmapReflect")) if p.get("texmapOnReflect", True) else None
-        if rt_ and "file" in rt_:  # metal colour comes from the reflection map
-            tex, uv = emit_color(rt_, stem + "_base", size)
+        if rt_ and "file" in rt_:  # metal colour comes from the reflection map (blended with the colour by its amount)
+            ra = (p.get("mapamountReflect", 100.0) or 0) / 100.0
+            tex, uv = emit_color(rt_, stem + "_base", size, mix=(col_lin(p.get("colorReflect")), ra) if ra < 0.999 else None)
             if tex:
                 m["baseColorTex"], m["uv"] = tex, uv
                 m["baseColor"] = [lr] * 3
@@ -415,7 +467,9 @@ def compile_legacy(e, size):
         lvl = p.get("levelDiffuse", 1.0)
         m["baseColor"] = [c * lvl for c in col_lin(p.get("colorDiffuse"))]
         if d and "file" in d:
-            m["baseColorTex"], m["uv"] = emit_color(d, stem + "_base", size)
+            da = (p.get("mapamountDiffuse", 100.0) or 0) / 100.0
+            m["baseColorTex"], m["uv"] = emit_color(d, stem + "_base", size,
+                                                   mix=(col_lin(p.get("colorDiffuse")), da) if da < 0.999 else None)
             m["baseColor"] = [lvl] * 3
         elif d and "color" in d:
             m["baseColor"] = [c * lvl for c in d["color"]]

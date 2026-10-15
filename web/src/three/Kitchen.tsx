@@ -238,7 +238,7 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
       sh.fragmentShader = sh.fragmentShader
         .replace(
           '#include <roughnessmap_fragment>',
-          '#include <roughnessmap_fragment>\nfloat nikHole = texture2D( nikPerf, vNormalMapUv ).r;\nroughnessFactor = mix( 0.9, roughnessFactor, nikHole );',
+          '#include <roughnessmap_fragment>\nfloat nikHole = texture2D( nikPerf, vNormalMapUv, -1.0 ).r;\nroughnessFactor = mix( 0.9, roughnessFactor, nikHole );',
         )
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor *= nikHole;\ndiffuseColor.rgb *= mix( 0.02, 1.0, nikHole );')
     }
@@ -272,15 +272,14 @@ const TWEAKS: Record<
   // pleated floor lamp by the corner sofa: translucent shade + diffuser lit by the bulb inside (follows the lights)
   'Material #4931': { glow: [0.34, 0.2, 0.09] },
   'Material #4880': { glow: [1.0, 0.62, 0.3] },
-  // bronze (perforated walls, kitchen box, ceiling): the Corona reflection colour tints the grey brushed-metal map
-  'Material #2147483647': { tint: [1.0, 0.68, 0.46] },
-  'Material #-2147483422': { tint: [1.0, 0.68, 0.46] },
   'Material #-2147483644': { tint: [1.0, 0.72, 0.5] },
   // honed travertine: the reflection map is missing from the archive -> Corona IOR 3 alone reads as a wet mirror
   travertine7567567: { ior: 1.5, roughness: 0.5, dropRoughnessMap: true },
   travertine: { ior: 1.5, roughness: 0.5, dropRoughnessMap: true },
   // photo backdrops of the view outside the windows: a print, not a mirror
   'Material #-2147483574': { roughness: 1, env: 0 },
+  // bar stools: caramel nubuck in the renders (the Corona colour chain is mostly lit warm), soft sheen only
+  'Material #2147455760': { tint: [1.0, 0.8, 0.62], roughness: 0.75, env: 0.45 },
   // sofa cushions (accent fabric): their gloss map is missing from the archive
   'Material #-214748313700675': { roughness: 0.85, env: 0.3 },
 }
@@ -447,7 +446,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     if (nik.surface === 'leather') {
       // the leather gloss maps read as patent leather under real-time IBL: soft satin instead
       mat.roughnessMap = null
-      mat.roughness = 0.55
+      mat.roughness = tw?.roughness ?? 0.55
     }
     if (tw?.glow) {
       mat.emissive.setRGB(...tw.glow)
@@ -577,7 +576,9 @@ const HOVER_TINT = new THREE.Color(0.05, 0.035, 0.02)
 /** objects left out of the reflection-probe captures (glass, the chandelier) */
 export const probeHide: THREE.Object3D[] = []
 /** daylight vs evening backdrop seen through the windows */
-export const moodLook = { daySky: 7.0, nightSky: 0.05 }
+// the backdrop is only seen through cracks between panels and openings into the cut-off villa (the windows glow
+// by themselves): bright sky there read as holes, so it stays dim
+export const moodLook = { daySky: 0.06, nightSky: 0.02 }
 
 function makeLive(): LiveMix {
   return {
@@ -607,6 +608,18 @@ export function Kitchen() {
   const size = useThree((s) => s.size)
   const dpr = useThree((s) => s.viewport.dpr)
   const sky = useMemo(() => makeSkyBackdrop(), [])
+  // the room is cut out of the villa: doorways into the cut-off rooms and cracks between panels would show the
+  // backdrop. A dark shell just outside the crop box (inside faces) reads as shadowed depth instead.
+  const shell = useMemo(() => {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(22.8, 10.5, 13.2),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.018, 0.014, 0.011), side: THREE.BackSide, fog: false }),
+    )
+    m.position.set(7.5, 4.6, 0) // crop box x -3.5..18.5, z -6.2..6.2 (+0.4 m), floor -0.6 .. roof 9.9
+    m.name = 'RoomShell'
+    m.raycast = () => {}
+    return m
+  }, [])
   const reflection = useMemo(() => new PlanarReflection(0.5), [])
   const probes = useMemo(() => new RoomProbes(gl), [gl])
   useEffect(
@@ -701,7 +714,7 @@ export function Kitchen() {
     const kDef = MIX_DEFAULTS.kitchen.color[1] * MIX_DEFAULTS.kitchen.intensity
     for (const g of lampGlows) g.emissiveIntensity = lm.groups.kitchen.y / Math.max(1e-6, kDef)
     // windows: daylight glow fading to dark reflective glass
-    for (const w of windows) w.emissiveIntensity = 0.015 + 1.15 * live.light * live.light
+    for (const w of windows) w.emissiveIntensity = 0.015 + 0.85 * live.light * live.light
 
     // sky through the windows: bright daylight, deep blue evening
     scene.background = sky
@@ -785,6 +798,7 @@ export function Kitchen() {
   return (
     <>
       <primitive object={gltf.scene} onPointerMove={onMove} onPointerOut={onOut} onClick={onClick} onDoubleClick={onDoubleClick} />
+      <primitive object={shell} />
       {chandelier && <primitive object={chandelier.scene} />}
     </>
   )

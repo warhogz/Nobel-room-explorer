@@ -31,7 +31,8 @@ export const CORONA_DEFAULTS: CoronaTMParams = {
   exposureEV: 2.253,
   calibrationEV: 0.2,
   userEV: 0,
-  whiteBalanceK: 6300,
+  // Corona's pipeline says 6300 K; our baked light comes out warmer than Corona's, 5200 K matches renders 10 / 28
+  whiteBalanceK: 5200,
   contrast: 2.0,
   contrastK: 0.12,
   saturation: -0.18, // the converted light tints read more saturated than Corona's
