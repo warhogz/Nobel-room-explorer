@@ -95,12 +95,26 @@ export async function fetchBuffer(base: string, url: string): Promise<ArrayBuffe
     loaded += value.byteLength
     reportBytes(url, loaded, total)
   }
-  const out = new Uint8Array(loaded)
+  const out = concat(chunks)
+  // a host that ignores Git LFS serves the ~130 byte pointer file instead of the asset
+  if (out.byteLength < 512 && new TextDecoder().decode(out).startsWith('version https://git-lfs'))
+    throw new Error(`${url}: got a Git LFS pointer instead of the file`)
+  fileDone(url)
+  return out.buffer as ArrayBuffer
+}
+
+/** fetch a file stored in pieces, all pieces in parallel */
+export async function fetchParts(base: string, urls: string[]): Promise<ArrayBuffer> {
+  const parts = await Promise.all(urls.map((u) => fetchBuffer(base, u)))
+  return concat(parts.map((p) => new Uint8Array(p))).buffer as ArrayBuffer
+}
+
+function concat(chunks: Uint8Array[]) {
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0))
   let o = 0
   for (const c of chunks) {
     out.set(c, o)
     o += c.byteLength
   }
-  fileDone(url)
-  return out.buffer
+  return out
 }

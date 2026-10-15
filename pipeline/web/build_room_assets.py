@@ -32,6 +32,7 @@ TMP = os.path.join(B, "web_room_tmp")
 for d in (PUB, LM_OUT, TEX_OUT, TMP):
     os.makedirs(d, exist_ok=True)
 RGBM_RANGE = 16.0
+PART = 45 * 2 ** 20  # scene.glb pieces, under GitHub's 50 MB warning
 ENV = dict(os.environ)
 ENV["PATH"] = ";".join([r"C:\Program Files\nodejs", os.path.join(os.environ["APPDATA"], "npm"),
                         r"C:\Program Files\KTX-Software\bin", ENV.get("PATH", "")])
@@ -167,13 +168,30 @@ if "glb" in ONLY:
     gt("etc1s", t[5], t[6], "--quality", "255", "--resize", "1024")
     # per-vertex light (RGBM in _NIKK/_NIKE): 8 bit is the precision it was encoded for
     run(["node", os.path.join(ROOT, "pipeline", "web", "quantize_vertex_light.mjs"), t[6], t[7]])
-    gt("meshopt", t[7], os.path.join(PUB, "scene.glb"), "--level", "high")
-    print("scene.glb %.1f MB" % (os.path.getsize(os.path.join(PUB, "scene.glb")) / 2 ** 20))
+    final = os.path.join(TMP, "scene.glb")
+    gt("meshopt", t[7], final, "--level", "high")
+    print("scene.glb %.1f MB" % (os.path.getsize(final) / 2 ** 20))
+    # GitHub refuses files over 100 MB and hosts like Vercel skip Git LFS: ship the scene in plain-git pieces
+    split_dir = os.path.join(PUB, "scene")
+    shutil.rmtree(split_dir, ignore_errors=True)
+    os.makedirs(split_dir)
+    if os.path.exists(os.path.join(PUB, "scene.glb")):
+        os.remove(os.path.join(PUB, "scene.glb"))
+    data = open(final, "rb").read()
+    parts = []
+    for i in range(0, len(data), PART):
+        name = "scene/scene_%d.bin" % (i // PART)
+        open(os.path.join(PUB, name), "wb").write(data[i:i + PART])
+        parts.append("assets/" + name)
+    lm_manifest = json.load(open(lm_path))
+    lm_manifest["parts"] = {"assets/scene.glb": parts}
+    json.dump(lm_manifest, open(lm_path, "w"), indent=1)
     for f in ("cameras.json", "lights.json"):
         shutil.copy(os.path.join(SRC, f), os.path.join(PUB, f))
 # download sizes for an honest preloader: every file the viewer fetches before showing the scene
 lm_manifest = json.load(open(lm_path))
-files = {"assets/scene.glb": None, "assets/chandelier.glb": None}
+files = {u: None for u in lm_manifest.get("parts", {}).get("assets/scene.glb", ["assets/scene.glb"])}
+files["assets/chandelier.glb"] = None
 for info in lm_manifest["objects"].values():
     for g in info.get("groups", {}).values():
         files[g["url"]] = None

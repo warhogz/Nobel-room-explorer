@@ -6,7 +6,7 @@ import { acceleratedRaycast, MeshBVH } from 'three-mesh-bvh'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
-import { expectFiles, fetchBuffer, fileDone, reportBytes, useLoad } from '../loading'
+import { expectFiles, fetchBuffer, fetchParts, fileDone, reportBytes, useLoad } from '../loading'
 import { MIX_DEFAULTS, useStore, type FaucetFinish } from '../store'
 import { setupChandelier } from './Chandelier'
 import { buildWalkCollider } from './Walk'
@@ -89,7 +89,12 @@ async function loadAll(gl: THREE.WebGLRenderer): Promise<Loaded> {
   const manifest: LightmapManifest = await (await fetch(`${BASE}assets/lightmaps.json`)).json()
   expectFiles(manifest.bytes ?? {})
   const gltfLoader = new GLTFLoader().setKTX2Loader(getKTX2(gl)).setMeshoptDecoder(MeshoptDecoder)
-  const glb = (rel: string) => fetchBuffer(BASE, rel).then((buf) => gltfLoader.parseAsync(buf, `${BASE}assets/`))
+  const glb = (rel: string) => {
+    const parts = manifest.parts?.[rel]
+    return (parts ? fetchParts(BASE, parts) : fetchBuffer(BASE, rel)).then((buf) =>
+      gltfLoader.parseAsync(buf, `${BASE}assets/`),
+    )
+  }
   const [gltf, chandelier, assets] = await Promise.all([
     glb('assets/scene.glb'),
     glb('assets/chandelier.glb').catch((e) => {

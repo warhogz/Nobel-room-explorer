@@ -27,6 +27,8 @@ export interface LightmapManifest {
   vertex?: { range: number; scales: Partial<Record<GroupId, number>>; objects: string[] }
   /** download sizes (relative url -> bytes) for the preloader */
   bytes?: Record<string, number>
+  /** files stored in pieces (GitHub's 100 MB per-file limit): url -> part urls, concatenated in order */
+  parts?: Record<string, string[]>
 }
 
 export interface GroupMix {

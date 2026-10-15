@@ -1,5 +1,8 @@
 *.max filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text
-web/public/assets/**/*.ktx2 filter=lfs diff=lfs merge=lfs -text
-web/public/assets/**/*.hdr filter=lfs diff=lfs merge=lfs -text
-web/public/assets/*.glb filter=lfs diff=lfs merge=lfs -text
+# web assets are plain git: Vercel and similar hosts serve LFS pointer files instead of the content.
+# scene.glb ships in 45 MB pieces (assets/scene/*.bin) to stay under GitHub's 100 MB file limit.
+web/public/assets/**/*.glb binary
+web/public/assets/**/*.ktx2 binary
+web/public/assets/**/*.bin binary
+web/public/assets/**/*.hdr binary

@@ -241,7 +241,10 @@
   "perf_mask": "assets/tex/perf_mask.ktx2"
  },
  "bytes": {
-  "assets/scene.glb": 165915300,
+  "assets/scene/scene_0.bin": 47185920,
+  "assets/scene/scene_1.bin": 47185920,
+  "assets/scene/scene_2.bin": 47185920,
+  "assets/scene/scene_3.bin": 24357540,
   "assets/chandelier.glb": 1084896,
   "assets/lm/Floor_Kitchen_env.ktx2": 8914755,
   "assets/lm/Floor_Kitchen_kitchen.ktx2": 3967174,
@@ -273,5 +276,13 @@
   "assets/tex/Material__2147483633_M15199_transl_9823e75e.ktx2": 388026,
   "assets/tex/Material___2147483421_M19921_transl_11d3722d.ktx2": 3197216,
   "assets/tex/perf_mask.ktx2": 1997
+ },
+ "parts": {
+  "assets/scene.glb": [
+   "assets/scene/scene_0.bin",
+   "assets/scene/scene_1.bin",
+   "assets/scene/scene_2.bin",
+   "assets/scene/scene_3.bin"
+  ]
  }
 }
