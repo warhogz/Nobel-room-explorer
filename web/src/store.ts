@@ -26,9 +26,9 @@ export const GROUP_LABELS: Record<GroupId, string> = {
 export const MIX_DEFAULTS: Record<GroupId, GroupMix> = {
   // the blackbody/LightMix tints of the converted lights come out more saturated than in Corona: cooled a little
   kitchen: { color: [0.8, 0.96, 1.25], intensity: 6.0, enabled: true },
-  ostrov: { color: [1.0, 0.6, 0.33], intensity: 3.0, enabled: true },
+  ostrov: { color: [1.0, 0.6, 0.33], intensity: 8.0, enabled: true },
   pol: { color: [1.0, 1.0, 1.0], intensity: 100.0, enabled: true },
-  env: { color: [1.0, 1.0, 1.0], intensity: 0.1, enabled: true },
+  env: { color: [1.0, 1.0, 1.0], intensity: 1.2, enabled: true },
 }
 
 export type FaucetFinish = 'black' | 'brass' | 'beige'

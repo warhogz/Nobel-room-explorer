@@ -122,6 +122,12 @@ if "lm" in ONLY:
             print("  lm %-14s %-8s scale=%.3f  %d KB" % (obj, g, scale, os.path.getsize(out) // 1024))
         lm_manifest["objects"][obj] = entry
     lm_manifest["vertex"] = json.load(open(os.path.join(SRC, "vertex_lm.json")))
+    # sections written by the other steps (tex, glb) survive a lightmaps-only run
+    if os.path.exists(lm_path):
+        old = json.load(open(lm_path))
+        for k in ("textures", "parts"):
+            if k in old:
+                lm_manifest[k] = old[k]
     json.dump(lm_manifest, open(lm_path, "w"), indent=1)
 
 if "tex" in ONLY:

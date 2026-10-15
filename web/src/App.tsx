@@ -24,7 +24,7 @@ function PostFX() {
   return (
     <EffectComposer frameBufferType={THREE.HalfFloatType} multisampling={0}>
       {/* glare in scene-linear HDR, only from real light sources (LEDs, glowing onyx peaks), then tone mapping */}
-      <Bloom intensity={0.55} luminanceThreshold={1.6} luminanceSmoothing={0.5} mipmapBlur radius={0.82} blendFunction={BlendFunction.ADD} />
+      <Bloom intensity={0.5} luminanceThreshold={2.6} luminanceSmoothing={0.4} mipmapBlur radius={0.7} blendFunction={BlendFunction.ADD} />
       <primitive object={effect} />
       <SMAA />
     </EffectComposer>

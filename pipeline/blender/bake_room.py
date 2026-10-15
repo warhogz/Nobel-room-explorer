@@ -108,6 +108,42 @@ def material_mode(m, mode, group=None):
             inp.default_value = (1, 1, 1, 1)
         else:
             nt.links.new(node.outputs["Color"], inp)
+    albedo_floor(nt, bsdf, mode == "bake")
+
+
+# The DIFFUSE bake without the colour pass returns light / albedo: a black base colour (black leather, dark brass
+# without its map) bakes as zero light, and in the web such a surface also loses its reflections (specular
+# occlusion). While baking, the albedo is floored at a few percent (barely changes the bounce); export restores it.
+FLOOR = 0.03
+
+
+def albedo_floor(nt, bsdf, on):
+    inp = bsdf.inputs["Base Color"]
+    mix = nt.nodes.get("AlbedoFloor")
+    src = None
+    if mix is not None:
+        links = mix.inputs[6].links  # A (colour)
+        src = links[0].from_socket if links else None
+        keep = tuple(mix.inputs[6].default_value)
+        nt.nodes.remove(mix)
+        if src is not None:
+            nt.links.new(src, inp)
+        else:
+            inp.default_value = keep
+    if not on:
+        return
+    src = inp.links[0].from_socket if inp.links else None
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.name = "AlbedoFloor"
+    mix.data_type = "RGBA"
+    mix.blend_type = "LIGHTEN"
+    mix.inputs[0].default_value = 1.0
+    if src is not None:
+        nt.links.new(src, mix.inputs[6])
+    else:
+        mix.inputs[6].default_value = tuple(inp.default_value)
+    mix.inputs[7].default_value = (FLOOR, FLOOR, FLOOR, 1.0)
+    nt.links.new(mix.outputs[2], inp)
 
 
 def all_mats():

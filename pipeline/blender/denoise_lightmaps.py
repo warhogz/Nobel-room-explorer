@@ -5,6 +5,7 @@ blender -b --factory-startup -P denoise_lightmaps.py -- <bake_dir>
 Bakes have no albedo/normal passes, so the plain HDR filter is used; seams are safe (16 px dilated margins).
 """
 import glob
+import json
 import os
 import shutil
 import sys
@@ -12,7 +13,7 @@ import time
 
 import bpy
 
-DIR = sys.argv[sys.argv.index("--") + 1]
+DIR = os.path.abspath(sys.argv[sys.argv.index("--") + 1])
 RAW = os.path.join(DIR, "raw")
 os.makedirs(RAW, exist_ok=True)
 
@@ -40,9 +41,13 @@ out = ng.nodes.new("NodeGroupOutput")
 ng.links.new(n_img.outputs["Image"], n_den.inputs["Image"])
 ng.links.new(n_den.outputs["Image"], out.inputs[0])
 
+# outputs this script wrote (mtime): anything else in DIR is a fresh bake whose raw copy must be replaced
+STAMP = os.path.join(RAW, "denoised.json")
+done = json.load(open(STAMP)) if os.path.exists(STAMP) else {}
 for path in sorted(glob.glob(os.path.join(DIR, "*.exr"))):
-    raw = os.path.join(RAW, os.path.basename(path))
-    if not os.path.exists(raw):
+    name = os.path.basename(path)
+    raw = os.path.join(RAW, name)
+    if not os.path.exists(raw) or done.get(name) != os.path.getmtime(path):
         shutil.copy2(path, raw)
     t = time.time()
     img = bpy.data.images.load(raw)
@@ -52,5 +57,7 @@ for path in sorted(glob.glob(os.path.join(DIR, "*.exr"))):
     sc.render.filepath = path
     bpy.ops.render.render(write_still=True)
     bpy.data.images.remove(img)
+    done[name] = os.path.getmtime(path)
+    json.dump(done, open(STAMP, "w"), indent=1)
     print("DENOISED %-34s %.1fs" % (os.path.basename(path), time.time() - t), flush=True)
 print("done")

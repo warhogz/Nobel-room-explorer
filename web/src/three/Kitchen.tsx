@@ -265,7 +265,13 @@ const COATS: Record<string, { clearcoat: number; clearcoatRoughness: number }> =
   'Material #76111117': { clearcoat: 0.45, clearcoatRoughness: 0.28 },
 }
 /** per-material corrections of the Corona conversion (orig. Max material name) */
-const TWEAKS: Record<string, Partial<{ ior: number; roughness: number; dropRoughnessMap: boolean; env: number; tint: [number, number, number] }>> = {
+const TWEAKS: Record<
+  string,
+  Partial<{ ior: number; roughness: number; dropRoughnessMap: boolean; env: number; tint: [number, number, number]; glow: [number, number, number] }>
+> = {
+  // pleated floor lamp by the corner sofa: translucent shade + diffuser lit by the bulb inside (follows the lights)
+  'Material #4931': { glow: [0.34, 0.2, 0.09] },
+  'Material #4880': { glow: [1.0, 0.62, 0.3] },
   // bronze (perforated walls, kitchen box, ceiling): the Corona reflection colour tints the grey brushed-metal map
   'Material #2147483647': { tint: [1.0, 0.68, 0.46] },
   'Material #-2147483422': { tint: [1.0, 0.68, 0.46] },
@@ -352,8 +358,12 @@ interface Setup {
   /** emissive lenses of the floor uplights (dimmed with the circuit) */
   lenses: { mat: THREE.MeshStandardMaterial; base: number }[]
   windows: THREE.MeshPhysicalMaterial[]
+  /** lamp shades lit from inside (dimmed with the interior lights) */
+  lampGlows: THREE.MeshStandardMaterial[]
 }
 const POL_LENS = 'Material #-2147483616'
+/** kitchen / hall boundary along x (metres from the island) */
+const KITCHEN_X = 2.72
 const setups = new WeakMap<THREE.Object3D, Setup>()
 
 /** scene parts other modules need (camera collision, first-person walking) */
@@ -382,6 +392,23 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
   const glass: THREE.Object3D[] = []
   const lenses: Setup['lenses'] = []
   const windows: THREE.MeshPhysicalMaterial[] = []
+  const lampGlows: THREE.MeshStandardMaterial[] = []
+  /**
+   * Backlit onyx (the island, the kitchen's shelf niche): its own copy of the material, so the onyx dining tables
+   * and accessories in the hall, which share the Corona material but have no light inside, do not glow.
+   */
+  const backlitMats = new Map<THREE.Material, THREE.MeshStandardMaterial>()
+  const backlit = (src: THREE.MeshStandardMaterial, nik: Nik) => {
+    let g = backlitMats.get(src)
+    if (!g) {
+      g = src.clone()
+      g.emissive = new THREE.Color(1, 1, 1)
+      g.emissiveIntensity = 1
+      g.emissiveMap = assets.extra[nik.orig ?? ''] ?? null
+      backlitMats.set(src, g)
+    }
+    return g
+  }
 
   const prep = (m: THREE.Mesh, kind: LightKind, extra: Omit<PatchOpts, 'kind'> = {}, lightMap?: THREE.Texture) => {
     const src = (m.userData.nikSrc ??= m.material) as THREE.MeshStandardMaterial
@@ -422,6 +449,11 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       mat.roughnessMap = null
       mat.roughness = 0.55
     }
+    if (tw?.glow) {
+      mat.emissive.setRGB(...tw.glow)
+      mat.emissiveMap = mat.map
+      lampGlows.push(mat)
+    }
     m.material = mat
     if (nik.orig === POL_LENS) lenses.push({ mat, base: mat.emissiveIntensity })
   }
@@ -446,7 +478,16 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         const k = lm.kitchen.tex
         k.channel = 1
         o.traverse((m) => {
-          if (m instanceof THREE.Mesh) prep(m, 'direct', { envLm: { tex: lm.env!.tex, sK: lm.kitchen!.scale, sE: lm.env!.scale }, floor: isFloor }, k)
+          if (!(m instanceof THREE.Mesh)) return
+          const src = m.material as THREE.MeshStandardMaterial
+          const nik = nikOf(src)
+          if (nik.translucency && !m.userData.nikSrc) {
+            // the backlit onyx shelf niche at the back of the kitchen
+            m.updateWorldMatrix(true, false)
+            const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3())
+            if (c.x < KITCHEN_X) m.userData.nikSrc = backlit(src, nik)
+          }
+          prep(m, 'direct', { envLm: { tex: lm.env!.tex, sK: lm.kitchen!.scale, sE: lm.env!.scale }, floor: isFloor }, k)
         })
         return
       }
@@ -468,12 +509,8 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         const src = (m.userData.nikSrc ??= m.material) as THREE.MeshStandardMaterial
         const nik = nikOf(src)
         const glow = isIsland && nik.translucency
-        if (glow) {
-          // emissive = translucency map x inner light (+ SSS); without an ostrov bake only the SSS term remains
-          src.emissive = new THREE.Color(1, 1, 1)
-          src.emissiveIntensity = 1
-          src.emissiveMap = assets.extra[nik.orig ?? ''] ?? null
-        }
+        // emissive = translucency map x inner light (+ SSS); without an ostrov bake only the SSS term remains
+        if (glow) m.userData.nikSrc = backlit(src, nik)
         const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
         black.needsUpdate = true
         prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor }, mixer.target.texture)
@@ -525,7 +562,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       }
     })
   }
-  const setup = { mixers, faucet, floors, glass, lenses, windows }
+  const setup = { mixers, faucet, floors, glass, lenses, windows, lampGlows }
   setups.set(root, setup)
   return setup
 }
@@ -554,12 +591,14 @@ export function Kitchen() {
   const scene = useThree((s) => s.scene)
   const { gltf, chandelier, assets } = suspend(() => loadAll(gl), ['nik-scene'])
   maxAniso = gl.capabilities.getMaxAnisotropy()
-  const { mixers, faucet, floors, glass, lenses, windows } = useMemo(() => {
+  const { mixers, faucet, floors, glass, lenses, windows, lampGlows } = useMemo(() => {
+    const setup = setupScene(gltf.scene, assets)
     if (chandelier) {
-      setupChandelier(chandelier.scene, gl)
+      // hangers run up to the ceilings: ray-cast against the architecture (BVH set up by setupScene)
+      setupChandelier(chandelier.scene, gl, world.colliders, (m) => patchRoom(m, { kind: 'none' }))
       if (!probeHide.includes(chandelier.scene)) probeHide.push(chandelier.scene)
     }
-    return setupScene(gltf.scene, assets)
+    return setup
   }, [gltf, chandelier, assets, gl])
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const setFrameloop = useThree((s) => s.setFrameloop)
@@ -659,8 +698,10 @@ export function Kitchen() {
     lampsLive.group = lm.groups.pol.x / Math.max(1e-6, MIX_DEFAULTS.pol.color[0] * MIX_DEFAULTS.pol.intensity)
     const lensOn = lamps.length ? lamps.reduce((a, b) => a + b, 0) / lamps.length : 1
     for (const l of lenses) l.mat.emissiveIntensity = l.base * lensOn * lampsLive.group
+    const kDef = MIX_DEFAULTS.kitchen.color[1] * MIX_DEFAULTS.kitchen.intensity
+    for (const g of lampGlows) g.emissiveIntensity = lm.groups.kitchen.y / Math.max(1e-6, kDef)
     // windows: daylight glow fading to dark reflective glass
-    for (const w of windows) w.emissiveIntensity = 0.015 + 2.6 * live.light * live.light
+    for (const w of windows) w.emissiveIntensity = 0.015 + 1.15 * live.light * live.light
 
     // sky through the windows: bright daylight, deep blue evening
     scene.background = sky

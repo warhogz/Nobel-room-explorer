@@ -29,7 +29,7 @@ export interface CoronaTMParams {
 
 export const CORONA_DEFAULTS: CoronaTMParams = {
   exposureEV: 2.253,
-  calibrationEV: 0.0,
+  calibrationEV: 0.2,
   userEV: 0,
   whiteBalanceK: 6300,
   contrast: 2.0,

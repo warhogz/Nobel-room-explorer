@@ -282,11 +282,20 @@ export function WalkControls() {
     const steps = 4
     let grounded = false
     for (let i = 0; i < steps; i++) {
+      const prev = s.top.clone()
       s.top.addScaledVector(s.vel, dt / steps)
       const before = s.top.clone()
       const r = resolve(s.top)
       s.top.copy(r.pos)
       grounded ||= r.ground
+      // no floor under the next step (a doorway into the cut-off rest of the villa, an opening): treat it as a wall
+      const fy = floorAt(s.top)
+      if (fy === null || fy < prev.y - TOP - 0.35) {
+        s.top.x = prev.x
+        s.top.z = prev.z
+        s.vel.x = s.vel.z = 0
+        continue
+      }
       // walked into something: drop the velocity component pushing into it (slide along walls)
       const pushed = r.pos.clone().sub(before)
       if (pushed.lengthSq() > 1e-10) {

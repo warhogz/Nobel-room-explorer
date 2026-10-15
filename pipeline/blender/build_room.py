@@ -18,6 +18,7 @@ sorted into the web LightMix groups LM_kitchen / LM_env (suns + sky) / LM_pol (8
 import json
 import math
 import os
+import re
 import sys
 import time
 
@@ -76,6 +77,49 @@ with bpy.context.temp_override(selected_editable_objects=meshes, selected_object
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 log("meshes", len(meshes), "faces", sum(len(o.data.polygons) for o in meshes))
 
+# objects with sheared transforms (non-uniform scale under rotation) re-exported with Reset XForm
+# (pipeline/max/export_xform_fix.py): their mesh replaces the distorted one, in world space
+FIX = os.path.join(B, "export_room", "xform_fix.fbx")
+if os.path.exists(FIX):
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=FIX)
+    fixed = [o for o in bpy.data.objects if o not in before]
+    by_name = {o.name: o for o in meshes}
+    swapped = flipped = 0
+
+    def outwardness(me):
+        """area-weighted sum of (face normal . face centre - centroid): > 0 when the faces point outwards"""
+        n = len(me.polygons)
+        if not n:
+            return 0.0
+        nr = np.empty(n * 3, np.float32)
+        ce = np.empty(n * 3, np.float32)
+        ar = np.empty(n, np.float32)
+        me.polygons.foreach_get("normal", nr)
+        me.polygons.foreach_get("center", ce)
+        me.polygons.foreach_get("area", ar)
+        ce = ce.reshape(-1, 3)
+        return float((np.einsum("ij,ij->i", nr.reshape(-1, 3), ce - ce.mean(0)) * ar).sum())
+
+    for f in fixed:
+        tgt = by_name.get(re.sub(r"\.\d{3}$", "", f.name))
+        if f.type == "MESH" and tgt is not None and f.data.vertices:
+            f.data.transform(f.matrix_world)
+            f.data.transform(Matrix.Translation(-tgt.location))
+            # mirrored objects: Reset XForm may leave the faces inside-out; keep the winding the original had
+            # (the vertex bake shoots its rays along the normals - inside-out furniture bakes black)
+            if outwardness(f.data) * outwardness(tgt.data) < 0:
+                f.data.flip_normals()
+                flipped += 1
+            old = tgt.data
+            tgt.data = f.data
+            if old.users == 0:
+                bpy.data.meshes.remove(old)
+            swapped += 1
+        bpy.data.objects.remove(f)
+    report["xform_fixed"] = swapped
+    log("xform fix: replaced", swapped, "of", len(fixed), "flipped", flipped)
+
 # validate against the Max export manifest (world metres, before any processing)
 man = {d["name"]: d for d in MANIFEST["objects"]}
 bad = []
@@ -91,8 +135,16 @@ for o in meshes:
     err = float(np.linalg.norm(c1 - c0))
     if err > 0.02:
         bad.append((o.name, round(err, 3)))
+        # same shape, wrong place (sheared / scaled parents the FBX transform cannot carry, e.g. the Marvelous
+        # Designer pillows): put it back where Max has it
+        s1 = co.max(0) - co.min(0)
+        s0 = np.array(d["bboxMax_m"]) - np.array(d["bboxMin_m"])
+        if err > 0.04 and np.all(np.abs(s1 - s0) <= 0.1 * np.maximum(s0, 0.05)):
+            o.location += Vector((c0 - c1).tolist())
+            report.setdefault("bbox_moved", []).append((o.name, round(err, 3)))
 report["bbox_mismatch"] = bad
 log("bbox check:", "OK" if not bad else "%d mismatches, worst %s" % (len(bad), sorted(bad, key=lambda x: -x[1])[:5]))
+log("moved back:", report.get("bbox_moved"))
 if any(n == "Object2121349745" and e > 0.05 for n, e in bad):
     raise SystemExit("island moved during export")
 
@@ -704,6 +756,18 @@ for L in LIGHTS:
     if group == "pol":
         ob["nik_pol"] = True
     made_lights.append((ob.name, group, layer))
+# the pleated floor lamp by the corner sofa has no light of its own: in Corona its glowing tube shone through the
+# translucent shade. A warm bulb inside the shade (the shade's translucency lets part of it through, the open ends
+# throw pools on the floor and the ceiling).
+for name, loc, power in (("FloorLamp_bulb", (14.915, 0.755, 0.86), 25.0),):
+    ld = bpy.data.lights.new(name, "POINT")
+    ld.energy = power
+    ld.shadow_soft_size = 0.04
+    ld.color = blackbody(2700)
+    ob = bpy.data.objects.new(name, ld)
+    ob.location = loc
+    cols["kitchen"].objects.link(ob)
+    made_lights.append((ob.name, "kitchen", "extra"))
 report["lights"] = {g: sum(1 for _, gg, _ in made_lights if gg == g) for g in cols}
 log("lights", report["lights"])
 
