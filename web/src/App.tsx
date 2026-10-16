@@ -11,7 +11,7 @@ import { GROUPS } from './three/lightmix'
 import { live } from './three/live'
 import { WalkControls } from './three/Walk'
 import { STAGE_LABEL, STAGE_SPAN, useLoad } from './loading'
-import { Joystick, WalkButton, WalkHint } from './ui/WalkUI'
+import { IsolateButton, Joystick, WalkButton, WalkHint } from './ui/WalkUI'
 import { FINISHES, GROUP_LABELS, PRESETS, useStore, type PresetId } from './store'
 import { CompareRender, RenderPeek } from './ui/Compare'
 import './App.css'
@@ -275,6 +275,7 @@ function UI() {
         <div className="brand__sub">Onyx island · Villa kitchen & hall</div>
       </header>
       <div className={`top-right ${ready}`}>
+        <IsolateButton />
         <WalkButton />
         <LightSwitch />
       </div>

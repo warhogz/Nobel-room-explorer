@@ -132,6 +132,25 @@ export const floorUniforms = {
   nikReflStrength: { value: 1.2 },
 }
 
+/**
+ * "Island only": everything but the island dissolves in a ring sweeping in towards it (a thin warm line at the
+ * cut), the floor shrinks to a disc that fades into a studio backdrop (white by day, black in the evening).
+ * Radii in metres around the island centre; driven by Kitchen's frame loop.
+ */
+export const isoUniforms = {
+  nikIsoR: { value: 1e4 },
+  nikIsoFloorR: { value: 1e4 },
+  nikIsoFade: { value: 0.5 },
+  nikIsoBg: { value: new THREE.Color(0, 0, 0) },
+  nikIsoEdge: { value: 0 },
+}
+/** island set: stays in the "island only" mode */
+const ISO_KEEP = new Set(['Island', 'Planters', 'Faucets'])
+/** seconds for the room to dissolve / grow back */
+const ISO_TIME = 2.4
+/** studio backdrop by day (scene-linear, before the tone mapping: reads as a soft warm white) */
+const ISO_BG_DAY = new THREE.Color(0.66, 0.635, 0.6)
+
 type LightKind = 'mixer' | 'direct' | 'vertex' | 'none'
 interface PatchOpts {
   kind: LightKind
@@ -139,6 +158,8 @@ interface PatchOpts {
   envLm?: { tex: THREE.Texture; sK: number; sE: number }
   floor?: boolean
   perforated?: THREE.Texture
+  /** "island only" role: kept, the floor disc, or (default) the room that dissolves */
+  iso?: 'keep' | 'floor' | 'room'
 }
 
 /**
@@ -159,6 +180,8 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
     }
     if (o.floor) Object.assign(sh.uniforms, floorUniforms)
     if (o.perforated) sh.uniforms.nikPerf = { value: o.perforated }
+    const iso = o.iso ?? 'room'
+    if (iso !== 'keep') Object.assign(sh.uniforms, isoUniforms)
 
     // ---- vertex: world position (probes, floor mirror), per-vertex light
     let vHead = 'varying vec3 vNikWP;\n'
@@ -171,6 +194,10 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
       vHead += 'uniform mat4 nikReflMatrix;\nvarying vec4 vNikRefl;\n'
       vBody += 'vNikRefl = nikReflMatrix * vec4( vNikWP, 1.0 );\n'
     }
+    if (iso !== 'keep') {
+      vHead += 'varying vec2 vNikIso;\n'
+      vBody += 'vNikIso = vNikWP.xz;\n'
+    }
     sh.vertexShader = sh.vertexShader
       .replace('void main() {', vHead + 'void main() {')
       .replace('#include <project_vertex>', '#include <project_vertex>\n' + vBody)
@@ -182,7 +209,13 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
     if (o.ostrov) fHead += 'uniform sampler2D nikOstrov;\n'
     if (o.floor) fHead += 'varying vec4 vNikRefl;\nuniform sampler2D nikReflSharp;\nuniform sampler2D nikReflBlur;\nuniform float nikReflStrength;\n'
     if (o.perforated) fHead += 'uniform sampler2D nikPerf;\n'
-    sh.fragmentShader = sh.fragmentShader.replace('void main() {', fHead + 'void main() {')
+    let isoCut = ''
+    if (iso !== 'keep') {
+      fHead +=
+        'varying vec2 vNikIso;\nuniform float nikIsoR;\nuniform float nikIsoFloorR;\nuniform float nikIsoFade;\nuniform vec3 nikIsoBg;\nuniform float nikIsoEdge;\n'
+      isoCut = `float nikIsoD = length( vNikIso );\nif ( nikIsoD > ${iso === 'floor' ? 'nikIsoFloorR' : 'nikIsoR'} ) discard;\n`
+    }
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', fHead + 'void main() {\n' + isoCut)
 
     // box-projected probes instead of the plain env lookups
     sh.fragmentShader = sh.fragmentShader.replace(
@@ -254,8 +287,21 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
          #include <opaque_fragment>`,
       )
     }
+    if (iso === 'floor') {
+      // the disc fades into the studio backdrop
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        'outgoingLight = mix( outgoingLight, nikIsoBg, smoothstep( nikIsoFloorR - nikIsoFade, nikIsoFloorR, nikIsoD ) );\n#include <opaque_fragment>',
+      )
+    } else if (iso === 'room') {
+      // a thin warm line where the room is being cut away
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        'outgoingLight += vec3( 1.0, 0.62, 0.3 ) * nikIsoEdge * ( 1.0 - smoothstep( 0.0, 0.05, nikIsoR - nikIsoD ) );\n#include <opaque_fragment>',
+      )
+    }
   }
-  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : ''].join('-')
+  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room'].join('-')
   mat.customProgramCacheKey = () => key
 }
 
@@ -267,7 +313,19 @@ const COATS: Record<string, { clearcoat: number; clearcoatRoughness: number }> =
 /** per-material corrections of the Corona conversion (orig. Max material name) */
 const TWEAKS: Record<
   string,
-  Partial<{ ior: number; roughness: number; dropRoughnessMap: boolean; env: number; tint: [number, number, number]; glow: [number, number, number] }>
+  Partial<{
+    ior: number
+    roughness: number
+    roughMul: number
+    dropRoughnessMap: boolean
+    env: number
+    tint: [number, number, number]
+    glow: [number, number, number]
+    metalness: number
+    /** floor for a pure-black base colour (Corona black leather still shows a dark sheen) */
+    minColor: [number, number, number]
+    spec: number
+  }>
 > = {
   // pleated floor lamp by the corner sofa: translucent shade + diffuser lit by the bulb inside (follows the lights)
   'Material #4931': { glow: [0.34, 0.2, 0.09] },
@@ -280,10 +338,24 @@ const TWEAKS: Record<
   'Material #-2147483574': { roughness: 1, env: 0 },
   // bar stools: caramel nubuck in the renders (the Corona colour chain is mostly lit warm), soft sheen only
   'Material #2147455760': { tint: [1.0, 0.8, 0.62], roughness: 0.75, env: 0.45 },
+  // brass: in Corona the spots light it directly (glossy highlights + light gradients). Real time has only the probe
+  // reflections, so part of it takes the baked light (metalness < 1); colours measured against renders 10 / 12
+  'Material #2147483647': { tint: [2.06, 2.3, 2.48], metalness: 0.45, env: 1.6 },
+  'Material #-2147483422': { tint: [1.71, 1.89, 2.06], metalness: 0.75, env: 2.6, roughMul: 0.8 },
+  // black leather chairs / sofas: dark sheen instead of a void
+  'Material #-2147483443': { minColor: [0.03, 0.026, 0.023], spec: 0.7, roughness: 0.42, env: 1.1 },
+  'Material #-2147483646': { minColor: [0.03, 0.026, 0.023], spec: 0.7, roughness: 0.42, env: 1.1 },
+  'Material #-2147483565': { minColor: [0.03, 0.026, 0.023], spec: 0.7, roughness: 0.42, env: 1.1 },
   // sofa cushions (accent fabric): their gloss map is missing from the archive
   'Material #-214748313700675': { roughness: 0.85, env: 0.3 },
 }
-const RELIEF: Record<string, number> = { 'Material #-2147483589': 1.7, travertine7567567: 1.6, 'Material #76111117': 1.3 }
+const RELIEF: Record<string, number> = {
+  'Material #-2147483589': 1.7,
+  travertine7567567: 1.6,
+  'Material #76111117': 1.3,
+  // bar stool nubuck: the converted bump read as blotches
+  'Material #2147455760': 0.35,
+}
 
 interface Nik {
   orig?: string
@@ -318,6 +390,9 @@ function toPhysical(src: THREE.MeshStandardMaterial, nik: Nik) {
  * cropped villa outside shows through); dark glass reflecting the interior in the evening (see useFrame).
  */
 const WINDOW_GLASS = new Set(['glass clear', 'Glass'])
+const WIN_DAY = new THREE.Color(1.0, 0.97, 0.92)
+// evening: a deep-blue dusk behind the panes (pure black read as holes in the high windows), mirroring the warm room
+const WIN_DUSK = new THREE.Color(0.35, 0.5, 1.0)
 function toWindow(src: THREE.MeshStandardMaterial) {
   const m = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(0.02, 0.02, 0.022),
@@ -396,15 +471,18 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
    * Backlit onyx (the island, the kitchen's shelf niche): its own copy of the material, so the onyx dining tables
    * and accessories in the hall, which share the Corona material but have no light inside, do not glow.
    */
-  const backlitMats = new Map<THREE.Material, THREE.MeshStandardMaterial>()
-  const backlit = (src: THREE.MeshStandardMaterial, nik: Nik) => {
-    let g = backlitMats.get(src)
+  const backlitMats = new Map<string, THREE.MeshStandardMaterial>()
+  /** niche: the shelf LEDs are already in its bake - a soft glow only, and the stone a little darker (render 10) */
+  const backlit = (src: THREE.MeshStandardMaterial, nik: Nik, niche = false) => {
+    const key = src.uuid + (niche ? ':niche' : '')
+    let g = backlitMats.get(key)
     if (!g) {
       g = src.clone()
       g.emissive = new THREE.Color(1, 1, 1)
-      g.emissiveIntensity = 1
+      g.emissiveIntensity = niche ? 0.25 : 1
       g.emissiveMap = assets.extra[nik.orig ?? ''] ?? null
-      backlitMats.set(src, g)
+      if (niche) g.color.multiplyScalar(0.5)
+      backlitMats.set(key, g)
     }
     return g
   }
@@ -443,6 +521,12 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     if (tw?.roughness !== undefined) mat.roughness = tw.roughness
     if (tw?.env !== undefined) mat.envMapIntensity = tw.env
     if (tw?.tint) mat.color.multiply(new THREE.Color(...tw.tint))
+    if (tw?.metalness !== undefined) mat.metalness = tw.metalness
+    if (tw?.roughMul !== undefined) mat.roughness *= tw.roughMul
+    if (tw?.minColor) {
+      mat.color.setRGB(Math.max(mat.color.r, tw.minColor[0]), Math.max(mat.color.g, tw.minColor[1]), Math.max(mat.color.b, tw.minColor[2]))
+    }
+    if (tw?.spec !== undefined && mat instanceof THREE.MeshPhysicalMaterial) mat.specularIntensity = tw.spec
     if (nik.surface === 'leather') {
       // the leather gloss maps read as patent leather under real-time IBL: soft satin instead
       mat.roughnessMap = null
@@ -472,6 +556,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       const isIsland = o.name === 'Island'
       const isFloor = o.name.startsWith('Floor')
       const big = info.size >= 4096 || !!info.mipmaps
+      const iso = isFloor ? 'floor' : ISO_KEEP.has(o.name) ? 'keep' : 'room'
       if (big && lm.kitchen && lm.env) {
         // big atlases: the two RGBM groups are mixed in the material (no 4K float render target)
         const k = lm.kitchen.tex
@@ -484,9 +569,9 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
             // the backlit onyx shelf niche at the back of the kitchen
             m.updateWorldMatrix(true, false)
             const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3())
-            if (c.x < KITCHEN_X) m.userData.nikSrc = backlit(src, nik)
+            if (c.x < KITCHEN_X) m.userData.nikSrc = backlit(src, nik, true)
           }
-          prep(m, 'direct', { envLm: { tex: lm.env!.tex, sK: lm.kitchen!.scale, sE: lm.env!.scale }, floor: isFloor }, k)
+          prep(m, 'direct', { envLm: { tex: lm.env!.tex, sK: lm.kitchen!.scale, sE: lm.env!.scale }, floor: isFloor, iso }, k)
         })
         return
       }
@@ -512,7 +597,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         if (glow) m.userData.nikSrc = backlit(src, nik)
         const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
         black.needsUpdate = true
-        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor }, mixer.target.texture)
+        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso }, mixer.target.texture)
       })
       return
     }
@@ -532,7 +617,18 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     }
     if (o instanceof THREE.Mesh && !done.has(o)) {
       done.add(o)
-      prep(o, 'none')
+      if (o.name === 'Ground') {
+        // under the floor (the tiles are cut around columns and steps in the Max file): grout-toned stone, a little
+        // lower so nothing lying at floor level flickers against it
+        o.position.y -= 0.03
+        const g = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.3, 0.25, 0.19), roughness: 0.85, metalness: 0 })
+        g.userData.nik = JSON.stringify({ orig: 'Ground' })
+        o.userData.nikSrc = g
+      }
+      // multi-material objects are groups of meshes: the role comes from the top-level object
+      let top: THREE.Object3D = o
+      while (top.parent && top.parent !== root) top = top.parent
+      prep(o, 'none', { iso: top.name === 'Ground' ? 'floor' : ISO_KEEP.has(top.name) ? 'keep' : 'room' })
     }
   })
   if (faucet) {
@@ -613,7 +709,7 @@ export function Kitchen() {
   const shell = useMemo(() => {
     const m = new THREE.Mesh(
       new THREE.BoxGeometry(22.8, 10.5, 13.2),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.018, 0.014, 0.011), side: THREE.BackSide, fog: false }),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.045, 0.028, 0.017), side: THREE.BackSide, fog: false }),
     )
     m.position.set(7.5, 4.6, 0) // crop box x -3.5..18.5, z -6.2..6.2 (+0.4 m), floor -0.6 .. roof 9.9
     m.name = 'RoomShell'
@@ -639,6 +735,10 @@ export function Kitchen() {
   const probeBounces = useRef(4)
   const warmFrames = useRef(0)
   const walkBuilt = useRef(false)
+  /** "island only" progress 0 (room) .. 1 (island in the studio) */
+  const isoLive = useRef(0)
+  const isoBg = useMemo(() => new THREE.Color(), [])
+  const glassDist = useMemo(() => new Map<THREE.Object3D, number>(), [])
 
   // honest preloader: compile every shader program before the first frame (parallel where supported), then let
   // the light mix + reflection probes settle; only then is the scene revealed
@@ -713,11 +813,46 @@ export function Kitchen() {
     for (const l of lenses) l.mat.emissiveIntensity = l.base * lensOn * lampsLive.group
     const kDef = MIX_DEFAULTS.kitchen.color[1] * MIX_DEFAULTS.kitchen.intensity
     for (const g of lampGlows) g.emissiveIntensity = lm.groups.kitchen.y / Math.max(1e-6, kDef)
-    // windows: daylight glow fading to dark reflective glass
-    for (const w of windows) w.emissiveIntensity = 0.015 + 0.85 * live.light * live.light
+    // windows: daylight glow fading to dusk-blue glass that mirrors the lit room
+    const l2 = live.light * live.light
+    for (const w of windows) {
+      w.emissive.copy(WIN_DUSK).lerp(WIN_DAY, l2)
+      w.emissiveIntensity = 0.012 + 0.853 * l2
+      w.envMapIntensity = 2.2 - l2
+    }
 
-    // sky through the windows: bright daylight, deep blue evening
-    scene.background = sky
+    // "island only": the room dissolves in a ring sweeping in towards the island, and grows back out of it
+    const prevIso = isoLive.current
+    isoLive.current = s.isolate ? Math.min(1, prevIso + dt / ISO_TIME) : Math.max(0, prevIso - dt / ISO_TIME)
+    const ip = isoLive.current
+    const ie = ip * ip * (3 - 2 * ip)
+    isoBg.setRGB(0.006, 0.0055, 0.005).lerp(ISO_BG_DAY, live.light)
+    isoUniforms.nikIsoBg.value.copy(isoBg)
+    if (ip > 0) {
+      isoUniforms.nikIsoR.value = THREE.MathUtils.lerp(24, -0.3, ie)
+      isoUniforms.nikIsoFloorR.value = THREE.MathUtils.lerp(24, 2.1, ie) // the kitchen floor ends 2.0-2.2 m from the island
+      isoUniforms.nikIsoFade.value = THREE.MathUtils.lerp(0.4, 0.8, ie)
+      isoUniforms.nikIsoEdge.value = 2.4 * Math.sin(Math.PI * ie)
+    } else {
+      isoUniforms.nikIsoR.value = isoUniforms.nikIsoFloorR.value = 1e4
+      isoUniforms.nikIsoEdge.value = 0
+    }
+    // what the shader patch does not cover: glass, the shell around the crop, the hairline hangers
+    const R = isoUniforms.nikIsoR.value
+    for (const g of glass) {
+      let d = glassDist.get(g)
+      if (d === undefined) {
+        const c = new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3())
+        glassDist.set(g, (d = Math.hypot(c.x, c.z)))
+      }
+      g.visible = d < R
+    }
+    shell.visible = R > 12
+    const hangers = chandelier?.scene.getObjectByName('Chandelier_hangers')
+    if (hangers) hangers.visible = R > 3.5
+
+    // sky through the windows: bright daylight, deep blue evening (the studio backdrop in "island only")
+    scene.background = ip > 0 ? isoBg : sky
     scene.backgroundBlurriness = 0
     scene.backgroundIntensity = moodLook.nightSky + (moodLook.daySky - moodLook.nightSky) * live.light * live.light
 
@@ -727,7 +862,8 @@ export function Kitchen() {
       probeDirty.current = true
       probeBounces.current = 3
     }
-    if ((probeDirty.current || probeBounces.current > 0) && (probeAge.current > 6 || !scene.environment)) {
+    // (paused while the room is dissolved: the island keeps the room's reflections and the room comes back with them)
+    if (ip === 0 && (probeDirty.current || probeBounces.current > 0) && (probeAge.current > 6 || !scene.environment)) {
       scene.environment = probes.update(gl, scene, [...glass, ...probeHide])
       probeAge.current = 0
       if (!changed) probeBounces.current--
@@ -760,8 +896,13 @@ export function Kitchen() {
     Object.assign(window, {
       __nik: { gl, scene, mixers, assets, THREE, store: useStore, reflection, floorUniforms, roomUniforms, moodLook, sssUniform, probes, probeUniforms },
     })
-    Promise.all([import('../dev/solveCamera'), import('../dev/cameraSpecs')]).then(([m, c]) =>
-      Object.assign(window, { __solveCamera: (spec: never) => m.solveCamera(scene, spec), __cameraSpecs: c.cameraSpecs }),
+    Promise.all([import('../dev/solveCamera'), import('../dev/cameraSpecs'), import('../dev/measure')]).then(([m, c, ms]) =>
+      Object.assign(window, {
+        __solveCamera: (spec: never) => m.solveCamera(scene, spec),
+        __cameraSpecs: c.cameraSpecs,
+        __measure: (ref: string, regions: import('../dev/measure').Regions) => ms.measure(gl.domElement, ref, regions),
+        __REGIONS: ms.REGIONS,
+      }),
     )
   }, [gl, scene, mixers, assets, reflection, probes])
 

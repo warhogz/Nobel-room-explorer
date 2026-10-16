@@ -56,8 +56,22 @@ def warn(msg):
         print("WARN", msg)
 
 
+_BY_NAME = {}
+for _k, _e in R.items():
+    if _e.get("name"):
+        _BY_NAME.setdefault(_e["name"], []).append(_e)
+
+
 def ref(v):
-    return R[v["$ref"]] if isinstance(v, dict) and "$ref" in v else None
+    if isinstance(v, dict) and "$ref" in v:
+        return R[v["$ref"]]
+    # the dumper writes a map it has already written elsewhere as "<name>:<class>" (e.g. "Map #2146360627:Mix"):
+    # the copy of it that carries the most sub-map references
+    if isinstance(v, str) and ":" in v:
+        found = _BY_NAME.get(v.rsplit(":", 1)[0])
+        if found:
+            return max(found, key=lambda e: sum(isinstance(x, dict) and "$ref" in x for x in e["props"].values()))
+    return None
 
 
 def col_lin(c):
@@ -109,6 +123,14 @@ def corona_cc_op(p):
             "invert": bool(p.get("invert"))}
 
 
+def color_leaf(lin, ops):
+    """a flat colour at the bottom of a Color Correction chain: the corrections apply to it like to a texel"""
+    x = np.array(lin, np.float32).reshape(1, 1, 3)
+    for op in ops:
+        x = apply_cc(x, op)
+    return {"color": [round(float(c), 5) for c in x.reshape(3)]}
+
+
 def resolve(v, ops=(), depth=0):
     """Returns {'file','ops','uv','level'} | {'color': lin} | {'normal': {...}} | None"""
     e = ref(v)
@@ -125,6 +147,8 @@ def resolve(v, ops=(), depth=0):
     if c in ("Color_Correction", "CoronaColorCorrect"):
         if c == "CoronaColorCorrect":
             return resolve(p.get("texmap") or p.get("inputTexmap"), [corona_cc_op(p)] + list(ops), depth + 1)
+        if p.get("map") is None:  # no input map: Color Correction corrects its own colour swatch
+            return color_leaf(col_lin(p.get("color")), [cc_op(p)] + list(ops))
         return resolve(p.get("map"), [cc_op(p)] + list(ops), depth + 1)
     if c == "CompositeTexturemap":
         maps, en = p.get("mapList") or [], p.get("mapEnabled") or []
@@ -150,11 +174,11 @@ def resolve(v, ops=(), depth=0):
             warn("Composite '%s': using only layer %d" % (e.get("name"), layers[0][0]))
         return resolve(layers[0][1], ops, depth + 1)
     if c in ("Mix", "Falloff", "falloff"):
-        return resolve(p.get("map1"), ops, depth + 1) or ({"color": col_lin(p.get("color1"))} if p.get("color1") else None)
+        return resolve(p.get("map1"), ops, depth + 1) or (color_leaf(col_lin(p.get("color1")), ops) if p.get("color1") else None)
     if c == "CoronaMix":
         return resolve(p.get("texmapBottom"), ops, depth + 1) or resolve(p.get("texmapTop"), ops, depth + 1)
     if c == "CoronaColor":
-        return {"color": [x * (p.get("multiplier", 1.0) or 1.0) for x in col_lin(p.get("color"))]}
+        return color_leaf([x * (p.get("multiplier", 1.0) or 1.0) for x in col_lin(p.get("color"))], ops)
     if c == "CoronaNormal":
         inner = resolve(p.get("normalMap"), (), depth + 1)
         if inner and "file" in inner:

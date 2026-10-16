@@ -88,6 +88,8 @@ function clearDistance(target: THREE.Vector3, dir: THREE.Vector3, far: number) {
   return d
 }
 
+const ISO_VIEW = { position: [2.75, 1.85, 2.65] as const, target: [0, 0.42, 0] as const }
+
 // intro: from high up in the hall under the trusses, gliding down to the island
 const INTRO_FROM = { position: [11.5, 4.6, 0.6] as const, target: [0.4, 0.9, 0] as const }
 
@@ -100,7 +102,7 @@ export function CameraRig() {
     ['nik-cameras'],
   )
   const ready = useLoad((s) => s.stage === 'ready')
-  const { preset, presetNonce, introDone, setIntroDone, freeLook, focus, compareOn, mode } = useStore()
+  const { preset, presetNonce, introDone, setIntroDone, freeLook, focus, compareOn, mode, isolate } = useStore()
   /** the visitor has taken the camera since the last preset (spring arm on) */
   const userCam = useRef(false)
   const arm = useRef<number | null>(null)
@@ -152,6 +154,15 @@ export function CameraRig() {
     userCam.current = false
     ref.current.setLookAt(...p.position, ...p.target, true)
   }, [preset, presetNonce, introDone, exact, mode])
+
+  // "island only": a three-quarter view of the island while the room dissolves around it
+  useEffect(() => {
+    const c = ref.current
+    if (!c || !introDone || !isolate) return
+    userCam.current = true
+    c.smoothTime = 1.5
+    c.setLookAt(...ISO_VIEW.position, ...ISO_VIEW.target, true).then(() => (c.smoothTime = 0.85))
+  }, [isolate, introDone])
 
   // the comparison always shows the exact render camera
   useEffect(() => {
@@ -221,7 +232,8 @@ export function CameraRig() {
   useFrame((_, dt) => {
     const st = useStore.getState()
     const c = ref.current
-    const active = !!c && ready && st.mode === 'orbit' && !st.compareOn && (userCam.current || !st.preset)
+    // (no walls to stop at while the room is dissolved around the island)
+    const active = !!c && ready && st.mode === 'orbit' && !st.compareOn && !st.isolate && (userCam.current || !st.preset)
     if (!active || !c) {
       arm.current = null
       armNear.current = 0.05

@@ -310,6 +310,133 @@ ground.data.materials.append(gm)
 log("floor parts", len(floor_parts), "kitchen faces", len(floor.data.polygons), "hall faces", len(hall.data.polygons))
 meshes = [o for o in scene.objects if o.type == "MESH"]
 
+# slabs and plinths just under the floor (column bases, thresholds): the parts covered by the floor tiles bake black
+# and their lightmap bleeds into the few visible centimetres (black rings around columns), and faces a few mm under
+# the floor fight with it. Faces facing up, below the floor top and covered by a floor tile are removed.
+floor_bvh = [BVHTree.FromObject(f, bpy.context.evaluated_depsgraph_get()) for f in (floor, hall)]
+covered_total = 0
+for o in meshes:
+    if o in (floor, hall, ground) or o.name in HERO_NAMES:
+        continue
+    lo, hi = world_bounds(o)
+    if lo[2] > 0.0 or lo[2] < -0.5:
+        continue
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    kill = []
+    for fc in bm.faces:
+        c = fc.calc_center_median() + o.location
+        if fc.normal.z < 0.7 or c.z > -0.001:
+            continue
+        for fb, fo in zip(floor_bvh, (floor, hall)):
+            hit = fb.ray_cast(c - fo.location, Vector((0, 0, 1)), 0.3)
+            if hit[0] is not None:
+                kill.append(fc)
+                break
+    if kill:
+        bmesh.ops.delete(bm, geom=kill, context="FACES")
+        bm.to_mesh(o.data)
+        covered_total += len(kill)
+    bm.free()
+report["under_floor_faces_removed"] = covered_total
+log("faces hidden under the floor removed:", covered_total)
+
+# what is left of those slabs is a few-centimetre ring around each column base, 2 cm below the floor: as a sliver of
+# an atlas it bakes black. It becomes floor: lifted to floor level and joined to the floor (its lightmap and look).
+ring_parts = []
+# the plinth slabs are stacked copies in the Max file: coincident faces shadow each other completely in the bake
+# (Cycles starts its rays on the other copy) and fight in the web - each ring face is taken once
+ring_seen = set()
+for o in [o for o in meshes if o not in (floor, hall, ground) and o.name not in HERO_NAMES]:
+    if not o.data.polygons or not (mats_of(o) & FLOOR_MATS):
+        continue
+    lo, hi = world_bounds(o)
+    if lo[2] > 0.0 or lo[2] < -0.6:
+        continue
+    sel = [p.index for p in o.data.polygons
+           if p.normal.z > 0.9 and -0.06 < (o.matrix_world @ p.center).z < -0.001
+           and orig(o.data.materials[p.material_index]) in FLOOR_MATS]
+    if not sel:
+        continue
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.faces.ensure_lookup_table()
+    faces = [bm.faces[i] for i in sel]
+    keep = []
+    for f in faces:
+        c = f.calc_center_median() + o.location
+        k = (round(c.x / 0.003), round(c.y / 0.003), round(f.calc_area() * 1e4))
+        if k not in ring_seen:
+            ring_seen.add(k)
+            keep.append(f)
+    ring = bpy.data.meshes.new(o.name + "_ring")
+    rb = bmesh.new()
+    src_uv = bm.loops.layers.uv.active
+    dst_uv = rb.loops.layers.uv.new("UVMap")
+    vmap = {}
+    for f in keep:
+        vs = []
+        for v in f.verts:
+            if v.index not in vmap:
+                co = v.co.copy()
+                co.z = -o.location.z  # floor level in world space
+                vmap[v.index] = rb.verts.new(co)
+            vs.append(vmap[v.index])
+        try:
+            nf = rb.faces.new(vs)
+        except ValueError:  # duplicate face
+            continue
+        nf.material_index = f.material_index
+        if src_uv is not None:
+            for nl, ol in zip(nf.loops, f.loops):
+                nl[dst_uv].uv = ol[src_uv].uv
+    rb.to_mesh(ring)
+    rb.free()
+    for m in o.data.materials:
+        ring.materials.append(m)
+    ro = bpy.data.objects.new(o.name + "_ring", ring)
+    ro.location = o.location
+    scene.collection.objects.link(ro)
+    ring_parts.append(ro)
+    bmesh.ops.delete(bm, geom=faces, context="FACES")
+    bm.to_mesh(o.data)
+    bm.free()
+for ro in ring_parts:
+    lo, hi = world_bounds(ro)
+    target = hall if (lo[0] + hi[0]) / 2 > KITCHEN_X else floor
+    with bpy.context.temp_override(active_object=target, selected_editable_objects=[target, ro], selected_objects=[target, ro]):
+        bpy.ops.object.join()
+report["floor_rings_joined"] = len(ring_parts)
+log("column-base rings joined to the floor:", len(ring_parts))
+
+# bottom caps flush with the floor top (walls, column bases, furniture): never seen (back faces from above), but in the
+# bake they lie on the floor tiles like a lid - the floor under them bakes black and shows as black rings around the
+# column bases and black bands along the walls. Removed where a floor tile lies right under them.
+floor_bvh = [(BVHTree.FromObject(f, bpy.context.evaluated_depsgraph_get()), f) for f in (floor, hall)]
+caps_total = 0
+for o in [o for o in scene.objects if o.type == "MESH" and o not in (floor, hall, ground)]:
+    mw = o.matrix_world
+    n3 = mw.to_3x3()
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    kill = []
+    for fc in bm.faces:
+        c = mw @ fc.calc_center_median()
+        if abs(c.z) > 0.004 or (n3 @ fc.normal).normalized().z > -0.9:
+            continue
+        for fb, fo in floor_bvh:
+            if fb.ray_cast(fo.matrix_world.inverted() @ (c + Vector((0, 0, 0.002))), Vector((0, 0, -1)), 0.008)[0] is not None:
+                kill.append(fc)
+                break
+    if kill:
+        bmesh.ops.delete(bm, geom=kill, context="FACES_ONLY")
+        bm.to_mesh(o.data)
+        caps_total += len(kill)
+    bm.free()
+report["floor_caps_removed"] = caps_total
+log("bottom caps lying on the floor removed:", caps_total)
+meshes = [o for o in scene.objects if o.type == "MESH"]
+
 
 # ------------------------------------------------------------------ perforated bronze panels -> flat panels + texture
 def pca_frame(co):
@@ -582,6 +709,129 @@ for name, size in LIGHTMAPPED.items():
 for name in ("Faucets", "Plants"):
     if name in bpy.data.objects:
         bpy.data.objects[name]["nik_bake"] = "none"
+
+
+# ------------------------------------------------------------------ doubled and buried faces
+# The Max scene stacks copies of the same cladding (stair pillar, thresholds) and presses parts onto each other
+# (wall and plinth bottoms on slabs). Cycles bakes such faces black - its rays start inside the other copy - and
+# three.js z-fights them: the black striped bands at the thresholds and the stair pillar. A face goes when every
+# sample point of it is covered within 2 mm by
+#   - a same-material face facing the same way, coplanar or in front (one copy stays: a deleted face covers nothing), or
+#   - a face pressed onto it from the front, when the space in front of that leads into a closed solid (the first
+#     surface a ray meets there is a back face), so no camera ever sees it. A two-sided sheet (open space beyond)
+#     keeps both sides.
+def doubled_faces(gap=0.002):
+    t = time.time()
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    objs = [o for o in scene.objects if o.type == "MESH" and o is not ground and o.data.polygons]
+    trees = []
+    for o in objs:
+        lo, hi = world_bounds(o)
+        trees.append((o, BVHTree.FromObject(o, dg), Vector(lo) - Vector((gap,) * 3), Vector(hi) + Vector((gap,) * 3)))
+    mat_name = {o.name: [m.name if m else "" for m in o.data.materials] for o in objs}
+
+    def covers(o, p, s, n, mname):
+        """covering faces at world point s: (obj name, face index, 'same'|'pressed')"""
+        out = []
+        for o2, tree, lo, hi in trees:
+            if not (lo.x <= s.x <= hi.x and lo.y <= s.y <= hi.y and lo.z <= s.z <= hi.z):
+                continue
+            for hl, hn, hi_, _ in tree.find_nearest_range(s - o2.location, gap):
+                if o2 is o and hi_ == p.index:
+                    continue
+                dv = hl + o2.location - s
+                along = dv.dot(n)
+                if along < -2e-4 or (dv - n * along).length > 2e-4:
+                    continue
+                d = hn.dot(n)
+                if d > 0.98:
+                    p2 = o2.data.polygons[hi_]
+                    if mat_name[o2.name][p2.material_index] == mname:
+                        out.append((o2.name, hi_, "same"))
+                elif d < -0.98:
+                    out.append((o2.name, hi_, "pressed"))
+        return out
+
+    cands = []  # (obj, face, [covers per sample point], pressed ok)
+    for o in objs:
+        if o.name.startswith("Floor"):
+            continue
+        me = o.data
+        names = mat_name[o.name]
+        for p in me.polygons:
+            if p.area < 1e-4:
+                continue
+            n = p.normal
+            c = p.center
+            pts = [c] + [c.lerp(me.vertices[v].co, 0.85) for v in p.vertices]
+            per = []
+            for s in pts:
+                cv = covers(o, p, s + o.location, n, names[p.material_index])
+                if not cv:
+                    break
+                per.append(cv)
+            else:
+                pressed_ok = False
+                if any(k == "pressed" for cv in per for _, _, k in cv):
+                    hit, loc, hn, _, _, _ = scene.ray_cast(dg, c + o.location + n * (gap + 5e-4), n, distance=50.0)
+                    pressed_ok = bool(hit) and hn.dot(n) > 0.0
+                cands.append((o, p.index, per, pressed_ok))
+    # one mesh island at a time (candidate faces linked by shared edges), so one whole copy goes and the other stays
+    island = {}
+    for o in objs:
+        mine = [fi for oo, fi, _, _ in cands if oo is o]
+        if not mine:
+            continue
+        parent = {fi: fi for fi in mine}
+
+        def find(a):
+            while parent[a] != a:
+                parent[a] = parent[parent[a]]
+                a = parent[a]
+            return a
+        by_edge = {}
+        for fi in mine:
+            for ek in o.data.polygons[fi].edge_keys:
+                if ek in by_edge:
+                    parent[find(fi)] = find(by_edge[ek])
+                else:
+                    by_edge[ek] = fi
+        for fi in mine:
+            island[(o.name, fi)] = find(fi)
+    order = {o.name: i for i, o in enumerate(objs)}
+    cands.sort(key=lambda c: (order[c[0].name], island[(c[0].name, c[1])], c[1]))
+    deleted = set()
+    kill = {}
+    counts = {"same": 0, "pressed": 0}
+    area = 0.0
+    for o, fi, per, pressed_ok in cands:
+        kinds = []
+        for cv in per:
+            k = next((k for on, i, k in cv if k == "same" and (on, i) not in deleted), None)
+            if k is None and pressed_ok and any(k2 == "pressed" for _, _, k2 in cv):
+                k = "pressed"
+            if k is None:
+                break
+            kinds.append(k)
+        else:
+            deleted.add((o.name, fi))
+            kill.setdefault(o.name, []).append(fi)
+            counts["pressed" if "pressed" in kinds else "same"] += 1
+            area += o.data.polygons[fi].area
+    for name, idx in kill.items():
+        o = scene.objects[name]
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        bm.faces.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in idx], context="FACES")
+        bm.to_mesh(o.data)
+        bm.free()
+    report["doubled_faces_removed"] = dict(counts, area_m2=round(area, 2))
+    log("doubled/buried faces removed:", counts, "%.1f m2" % area, {k: len(v) for k, v in kill.items()}, "%.0fs" % (time.time() - t))
+
+
+doubled_faces()
 
 # ------------------------------------------------------------------ lightmap UVs
 for o in [o for o in scene.objects if o.type == "MESH" and o.get("nik_bake") == "lightmap"]:

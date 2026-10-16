@@ -33,9 +33,9 @@ export function setupChandelier(
         thickness: 0.05,
         // Corona: Fresnel IOR 2.7 - the glass mirrors a lot of the warm room (F0 ~0.16 at the three.js maximum)
         ior: 2.2,
-        // thick folds glow amber, thin edges stay clear (the renders' honey-gold glass)
-        attenuationColor: new THREE.Color(1.0, 0.72, 0.4),
-        attenuationDistance: 0.3,
+        // clear crystal, only the thickest folds turn faintly warm; the gold comes from the leaves
+        attenuationColor: new THREE.Color(1.0, 0.9, 0.76),
+        attenuationDistance: 1.0,
         specularIntensity: 1,
         specularColor: new THREE.Color(1.0, 0.9, 0.75),
         envMapIntensity: 2.6,
@@ -43,7 +43,7 @@ export function setupChandelier(
       })
     } else {
       // amber-gold leaves: polished warm metal
-      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(1.0, 0.6, 0.25), metalness: 1, roughness: 0.1, envMapIntensity: 2.4 })
+      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(1.0, 0.74, 0.32), metalness: 1, roughness: 0.12, envMapIntensity: 2.8 })
     }
     mat.userData.nikChandelier = true
     useProbes(mat)

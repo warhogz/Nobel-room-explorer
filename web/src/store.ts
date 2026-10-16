@@ -25,10 +25,10 @@ export const GROUP_LABELS: Record<GroupId, string> = {
  */
 export const MIX_DEFAULTS: Record<GroupId, GroupMix> = {
   // the blackbody/LightMix tints of the converted lights come out more saturated than in Corona: cooled a little
-  kitchen: { color: [1.0, 0.94, 0.88], intensity: 6.0, enabled: true },
-  ostrov: { color: [1.0, 0.6, 0.33], intensity: 8.0, enabled: true },
+  kitchen: { color: [0.84, 1.0, 0.72], intensity: 4.6, enabled: true },
+  ostrov: { color: [1.0, 0.55, 0.25], intensity: 2.5, enabled: true },
   pol: { color: [1.0, 1.0, 1.0], intensity: 100.0, enabled: true },
-  env: { color: [1.0, 1.0, 1.0], intensity: 1.8, enabled: true },
+  env: { color: [1.0, 0.88, 0.7], intensity: 2.8, enabled: true },
 }
 
 export type FaucetFinish = 'black' | 'brass' | 'beige'
@@ -58,6 +58,9 @@ interface State {
   day: boolean
   /** orbit around the island, or walk the room in first person */
   mode: 'orbit' | 'walk'
+  /** "island only": the room dissolves, the island stands on a floor disc in a studio backdrop */
+  isolate: boolean
+  setIsolate: (v: boolean) => void
   setMode: (m: 'orbit' | 'walk') => void
   toggleDay: () => void
   finish: FaucetFinish
@@ -95,7 +98,16 @@ export const useStore = create<State>((set) => ({
   day: true,
   toggleDay: () => set((s) => ({ day: !s.day })),
   mode: 'orbit',
-  setMode: (m) => set((s) => (m === 'walk' ? { mode: m, preset: null, focus: null, compareOn: false, hover: null } : { mode: m, presetNonce: s.presetNonce })),
+  setMode: (m) =>
+    set((s) => (m === 'walk' ? { mode: m, preset: null, focus: null, compareOn: false, hover: null, isolate: false } : { mode: m, presetNonce: s.presetNonce })),
+  isolate: false,
+  // back to the room: fly to the "Island & table" view while the room reappears around the island
+  setIsolate: (v) =>
+    set((s) =>
+      v
+        ? { isolate: true, mode: 'orbit', preset: null, focus: null, compareOn: false, hover: null }
+        : { isolate: false, preset: '10', presetNonce: s.presetNonce + 1 },
+    ),
   finish: 'black',
   focus: null,
   hover: null,
@@ -111,7 +123,7 @@ export const useStore = create<State>((set) => ({
   setFinish: (f) => set({ finish: f }),
   setFocus: (f) => set((s) => ({ focus: f, compareOn: f ? false : s.compareOn })),
   setHover: (h) => set({ hover: h }),
-  goTo: (p) => set((s) => ({ preset: p, presetNonce: s.presetNonce + 1, focus: null, hover: null, mode: 'orbit' })),
+  goTo: (p) => set((s) => ({ preset: p, presetNonce: s.presetNonce + 1, focus: null, hover: null, mode: 'orbit', isolate: false })),
   freeLook: () => set({ preset: null, compareOn: false }),
   setIntroDone: () => set({ introDone: true }),
   setMix: (g, m) => set((s) => ({ mix: { ...s.mix, [g]: { ...s.mix[g], ...m } } })),

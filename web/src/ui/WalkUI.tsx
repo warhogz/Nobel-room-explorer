@@ -133,3 +133,29 @@ export function Joystick() {
     </div>
   )
 }
+
+/** "island only" (the room dissolves, the island stands in a studio) / back to the full room */
+export function IsolateButton() {
+  const isolate = useStore((s) => s.isolate)
+  const setIsolate = useStore((s) => s.setIsolate)
+  return (
+    <button
+      className={`walkbtn ${isolate ? 'walkbtn--on' : ''}`}
+      onClick={() => setIsolate(!isolate)}
+      aria-pressed={isolate}
+      title={isolate ? 'Bring the room back' : 'Show the island alone'}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden>
+        {isolate ? (
+          <path d="M4 11.5 12 5l8 6.5M6.5 9.8V19h11V9.8" />
+        ) : (
+          <>
+            <ellipse cx="12" cy="17.5" rx="8.5" ry="2.6" />
+            <path d="M7.5 9.5h9l-1 7h-7z" />
+          </>
+        )}
+      </svg>
+      <span>{isolate ? 'Full room' : 'Island only'}</span>
+    </button>
+  )
+}
