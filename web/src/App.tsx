@@ -13,6 +13,9 @@ import { WalkControls } from './three/Walk'
 import { STAGE_LABEL, STAGE_SPAN, useLoad } from './loading'
 import { IsolateButton, Joystick, WalkButton, WalkHint } from './ui/WalkUI'
 import { FINISHES, GROUP_LABELS, PRESETS, useStore, type PresetId } from './store'
+import { LITE } from './lite'
+
+const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 import { CompareRender, RenderPeek } from './ui/Compare'
 import './App.css'
 
@@ -176,7 +179,7 @@ function Views() {
         ))}
       </div>
       <div className={`views__free ${preset === null ? 'views__free--on' : ''}`}>Free view</div>
-      <button
+      {!LITE && <button
         className={`views__compare ${compareOn ? 'active' : ''}`}
         onClick={() => setCompareOn(!compareOn)}
         disabled={!preset}
@@ -187,7 +190,7 @@ function Views() {
           <path d="M12 3v18" />
         </svg>
         {compareOn ? 'Hide render' : 'Compare with render'}
-      </button>
+      </button>}
       <RenderPeek id={compareOn ? null : peek.id} top={peek.top} />
     </nav>
   )
@@ -272,11 +275,11 @@ function UI() {
       <Tooltip />
       <header className={`brand ${ready}`}>
         <div className="brand__title">Nobel Island Kitchen</div>
-        <div className="brand__sub">Onyx island · Villa kitchen & hall</div>
+        <div className="brand__sub">{LITE ? 'Onyx island · table & stools' : 'Onyx island · Villa kitchen & hall'}</div>
       </header>
       <div className={`top-right ${ready}`}>
-        <IsolateButton />
-        <WalkButton />
+        {!LITE && <IsolateButton />}
+        {!LITE && <WalkButton />}
         <LightSwitch />
       </div>
       <WalkHint />
@@ -285,7 +288,7 @@ function UI() {
       <FinishPicker />
       <footer className={`hint ${introDone && !focus && !compareOn && mode === 'orbit' ? 'ui--on' : ''}`}>
         <span><kbd>Drag</kbd> orbit</span>
-        <span><kbd>Scroll</kbd> zoom</span>
+        <span><kbd>{TOUCH ? 'Pinch' : 'Scroll'}</kbd> zoom</span>
         <span><kbd>Click</kbd> floor lights · faucet</span>
       </footer>
     </>
@@ -299,7 +302,7 @@ export default function App() {
   return (
     <div className={`app ${bright ? 'app--light' : ''} ${walking ? 'app--walk' : ''}`}>
       <Canvas
-        dpr={[1, 2]}
+        dpr={LITE ? [1, 1.5] : [1, 2]}
         gl={{ antialias: false, alpha: true, toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: 'high-performance' }}
         camera={{ fov: 50, near: 0.02, far: 100, position: [-6.5, 3.6, 6.8] }}
         onCreated={({ gl, scene }) => {

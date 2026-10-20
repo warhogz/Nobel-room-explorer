@@ -6,3 +6,5 @@ web/public/assets/**/*.glb binary
 web/public/assets/**/*.ktx2 binary
 web/public/assets/**/*.bin binary
 web/public/assets/**/*.hdr binary
+web/public/assets-lite/**/*.ktx2 binary
+web/public/assets-lite/**/*.bin binary

@@ -15,7 +15,10 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import room_cameras  # noqa: E402
 
-OUT = sys.argv[sys.argv.index("--") + 1]
+ARGS = sys.argv[sys.argv.index("--") + 1:]
+OUT = ARGS[0]
+# --lite: the phone scene - the island set, the kitchen floor and the furniture standing around the island
+LITE = "--lite" in ARGS
 os.makedirs(OUT, exist_ok=True)
 sc = bpy.context.scene
 RANGE = 16.0
@@ -112,6 +115,59 @@ for ob in sorted(pol.objects if pol else [], key=lambda o: o.get("nik_index", 0)
     p = ob.location
     fixtures.append({"index": int(ob.get("nik_index", 0)), "name": ob.name, "position": [p.x, p.z, -p.y]})
 json.dump({"pol": fixtures}, open(os.path.join(OUT, "lights.json"), "w"), indent=1)
+
+if LITE:
+    import bmesh  # noqa: E402
+
+    KEEP = {"Island", "Table", "Faucets", "Plants", "Planters", "Floor_Kitchen"}
+    # island zone in Blender metres (island centre = origin): inside the kitchen walls, below the pendant height
+    ZX, ZY, ZZ = (-1.9, 2.6), (-2.0, 2.0), 1.6
+    for ob in list(sc.objects):
+        if ob.type != "MESH":
+            if ob.type not in ("CAMERA",):
+                bpy.data.objects.remove(ob)
+            continue
+        if ob.name in KEEP:
+            continue
+        if ob.get("nik_bake") not in ("vertex", "none"):
+            bpy.data.objects.remove(ob)
+            continue
+        # dense furniture chunks: whole pieces (connected parts) whose centre stands in the island zone
+        me = ob.data
+        nv = len(me.vertices)
+        co = np.empty(nv * 3, np.float32)
+        me.vertices.foreach_get("co", co)
+        co = co.reshape(-1, 3) + np.array(ob.matrix_world.translation, np.float32)
+        ev = np.empty(len(me.edges) * 2, np.int64)
+        me.edges.foreach_get("vertices", ev)
+        ev = ev.reshape(-1, 2)
+        lab = np.arange(nv)
+        while True:  # connected components by label propagation
+            m = np.minimum(lab[ev[:, 0]], lab[ev[:, 1]])
+            new = lab.copy()
+            np.minimum.at(new, ev[:, 0], m)
+            np.minimum.at(new, ev[:, 1], m)
+            new = new[new]
+            if np.array_equal(new, lab):
+                break
+            lab = new
+        cnt = np.bincount(lab, minlength=nv).astype(np.float64)
+        cen = np.stack([np.bincount(lab, co[:, k], minlength=nv) for k in range(3)], 1) / np.maximum(cnt, 1)[:, None]
+        inside = (ZX[0] < cen[:, 0]) & (cen[:, 0] < ZX[1]) & (ZY[0] < cen[:, 1]) & (cen[:, 1] < ZY[1]) & (cen[:, 2] < ZZ)
+        keep_v = inside[lab]
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bm.verts.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not keep_v[v.index]], context="VERTS")
+        bm.to_mesh(me)
+        bm.free()
+        if not me.polygons:
+            bpy.data.objects.remove(ob)
+    for m in list(bpy.data.materials):
+        if m.users == 0:
+            bpy.data.materials.remove(m)
+    print("lite objects", {o.name: len(o.data.polygons) for o in sc.objects if o.type == "MESH"})
+json.dump([o.name for o in sc.objects if o.type == "MESH"], open(os.path.join(OUT, "objects.json"), "w"), indent=1)
 
 for ob in sc.objects:
     if ob.type == "MESH" and "UVMap" in ob.data.uv_layers:

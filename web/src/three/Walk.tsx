@@ -90,6 +90,19 @@ export function buildWalkCollider() {
   return building
 }
 
+const castRay = new THREE.Ray()
+/**
+ * Distance to the first solid surface facing the ray (furniture, island, walls up to 2.4 m), or Infinity.
+ * Back faces are ignored: a ray starting inside the island (orbit target) leaves it freely.
+ */
+export function castCollider(origin: THREE.Vector3, dir: THREE.Vector3, far: number) {
+  if (!collider) return Infinity
+  castRay.origin.copy(origin)
+  castRay.direction.copy(dir)
+  const hit = collider.bvh.raycastFirst(castRay, THREE.FrontSide, 0, far)
+  return hit ? hit.distance : Infinity
+}
+
 // ------------------------------------------------------------------------------------------------ controller
 const tmpBox = new THREE.Box3()
 const tmpSeg = new THREE.Line3()

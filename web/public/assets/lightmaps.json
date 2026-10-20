@@ -9,29 +9,29 @@
      "url": "assets/lm/Floor_Kitchen_env.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.010868133922293782,
-     "p99": 21.789857690048215
+     "p50": 0.010873619590047746,
+     "p99": 21.789856463623046
     },
     "kitchen": {
      "url": "assets/lm/Floor_Kitchen_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
      "p50": 0.0,
-     "p99": 0.40928553990125655
+     "p99": 0.40921803028583525
     },
     "ostrov": {
      "url": "assets/lm/Floor_Kitchen_ostrov.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
      "p50": 0.0,
-     "p99": 0.04292779819965362
+     "p99": 0.04292746836096048
     }
    },
    "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 0.00014136021491140127,
+     "scale": 0.00014126212045084685,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Floor_Kitchen_pol_p0.ktx2",
@@ -47,15 +47,15 @@
      "url": "assets/lm/LM_Atlas_01_env.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.00761898798532784,
-     "p99": 33.792959085083005
+     "p50": 0.007718483192846178,
+     "p99": 33.79296454162598
     },
     "kitchen": {
      "url": "assets/lm/LM_Atlas_01_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.00034388835180943714,
-     "p99": 0.43935120563507074
+     "p50": 0.0003596501190215349,
+     "p99": 0.4418031891405582
     }
    },
    "mipmaps": true
@@ -67,29 +67,29 @@
      "url": "assets/lm/Table_env.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.007150456099258736,
-     "p99": 0.08660630718171596
+     "p50": 0.007161204047407955,
+     "p99": 0.08668686150312423
     },
     "kitchen": {
      "url": "assets/lm/Table_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.01619567252099514,
-     "p99": 0.3311953192770481
+     "p50": 0.016249969946220515,
+     "p99": 0.33107011522054675
     },
     "ostrov": {
      "url": "assets/lm/Table_ostrov.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.00010689523160108365,
-     "p99": 0.07665744031816721
+     "p50": 0.0001069748560898006,
+     "p99": 0.07665745255947112
     }
    },
    "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 0.0024360644165426493,
+     "scale": 0.0024355861824005842,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Table_pol_p0.ktx2",
@@ -105,29 +105,29 @@
      "url": "assets/lm/Island_env.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.0024234977684449406,
-     "p99": 0.052817271863669156
+     "p50": 0.002426521356217563,
+     "p99": 0.052869709854992106
     },
     "kitchen": {
      "url": "assets/lm/Island_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.01053902874449268,
-     "p99": 0.23523297356367112
+     "p50": 0.010552150001190601,
+     "p99": 0.23521787337921557
     },
     "ostrov": {
      "url": "assets/lm/Island_ostrov.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.3910380141735077,
-     "p99": 5.914515118998288
+     "p50": 0.39103800568580627,
+     "p99": 5.914515123301744
     }
    },
    "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 0.00654196459800005,
+     "scale": 0.006544781383126974,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Island_pol_p0.ktx2",
@@ -143,15 +143,15 @@
      "url": "assets/lm/LM_Atlas_00_env.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.016319033755362033,
-     "p99": 27.036383930969237
+     "p50": 0.02176035586688668,
+     "p99": 26.52395084671527
     },
     "kitchen": {
      "url": "assets/lm/LM_Atlas_00_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 2.3454199399566276e-06,
-     "p99": 0.24004027577638626
+     "p50": 4.774482856712438e-05,
+     "p99": 0.24618749413872135
     }
    },
    "mipmaps": true
@@ -164,28 +164,28 @@
      "scale": 16.0,
      "encoding": "rgb9e5",
      "p50": 0.0,
-     "p99": 0.01853279942460358
+     "p99": 0.01853509770520031
     },
     "kitchen": {
      "url": "assets/lm/Planters_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.0015024563755840063,
-     "p99": 0.24254077341556549
+     "p50": 0.0015133744573453442,
+     "p99": 0.2425732786655426
     },
     "ostrov": {
      "url": "assets/lm/Planters_ostrov.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
      "p50": 0.0004849513543595094,
-     "p99": 2.8718317466259005
+     "p99": 2.87183154168129
     }
    },
    "mipmaps": false,
    "perLight": {
     "pol": {
      "count": 8,
-     "scale": 1.9571416487451643e-05,
+     "scale": 1.9535360479494557e-05,
      "encoding": "sqrt",
      "urls": [
       "assets/lm/Planters_pol_p0.ktx2",
@@ -201,15 +201,15 @@
      "url": "assets/lm/Floor_Hall_env.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 0.00783153482414782,
-     "p99": 21.389492470932005
+     "p50": 0.007906616409122944,
+     "p99": 21.389487282180788
     },
     "kitchen": {
      "url": "assets/lm/Floor_Hall_kitchen.ktx2",
      "scale": 16.0,
      "encoding": "rgb9e5",
-     "p50": 4.3624413342695325e-05,
-     "p99": 0.4143726805448532
+     "p50": 4.77678610568546e-05,
+     "p99": 0.4145378787457943
     }
    },
    "mipmaps": true
@@ -218,20 +218,20 @@
  "vertex": {
   "range": 16.0,
   "scales": {
-   "kitchen": 0.07711327267022278,
-   "env": 0.604788528249825
+   "kitchen": 0.1125349439408752,
+   "env": 0.6344777510195685
   },
   "objects": [
-   "VX_09",
-   "VX_01",
-   "VX_03",
-   "VX_04",
-   "VX_08",
    "VX_02",
-   "VX_00",
-   "VX_07",
+   "VX_01",
+   "VX_04",
    "VX_05",
-   "VX_06"
+   "VX_08",
+   "VX_07",
+   "VX_03",
+   "VX_00",
+   "VX_06",
+   "VX_09"
   ]
  },
  "textures": {
@@ -252,34 +252,34 @@
   "assets/scene/scene_0.bin": 47185920,
   "assets/scene/scene_1.bin": 47185920,
   "assets/scene/scene_2.bin": 47185920,
-  "assets/scene/scene_3.bin": 26019312,
+  "assets/scene/scene_3.bin": 31526468,
   "assets/chandelier.glb": 1084896,
-  "assets/lm/Floor_Kitchen_env.ktx2": 11918330,
-  "assets/lm/Floor_Kitchen_kitchen.ktx2": 4087990,
-  "assets/lm/Floor_Kitchen_ostrov.ktx2": 4223541,
-  "assets/lm/Floor_Kitchen_pol_p0.ktx2": 686434,
-  "assets/lm/Floor_Kitchen_pol_p1.ktx2": 648588,
-  "assets/lm/LM_Atlas_01_env.ktx2": 13181090,
-  "assets/lm/LM_Atlas_01_kitchen.ktx2": 10683841,
-  "assets/lm/Table_env.ktx2": 1991246,
-  "assets/lm/Table_kitchen.ktx2": 1373185,
-  "assets/lm/Table_ostrov.ktx2": 2293381,
-  "assets/lm/Table_pol_p0.ktx2": 207287,
-  "assets/lm/Table_pol_p1.ktx2": 209346,
-  "assets/lm/Island_env.ktx2": 13391394,
-  "assets/lm/Island_kitchen.ktx2": 11728439,
-  "assets/lm/Island_ostrov.ktx2": 12983441,
-  "assets/lm/Island_pol_p0.ktx2": 1297703,
-  "assets/lm/Island_pol_p1.ktx2": 1276022,
-  "assets/lm/LM_Atlas_00_env.ktx2": 12637945,
-  "assets/lm/LM_Atlas_00_kitchen.ktx2": 8919154,
-  "assets/lm/Planters_env.ktx2": 164578,
-  "assets/lm/Planters_kitchen.ktx2": 177947,
-  "assets/lm/Planters_ostrov.ktx2": 220829,
+  "assets/lm/Floor_Kitchen_env.ktx2": 11916378,
+  "assets/lm/Floor_Kitchen_kitchen.ktx2": 4093363,
+  "assets/lm/Floor_Kitchen_ostrov.ktx2": 4220743,
+  "assets/lm/Floor_Kitchen_pol_p0.ktx2": 686761,
+  "assets/lm/Floor_Kitchen_pol_p1.ktx2": 648579,
+  "assets/lm/LM_Atlas_01_env.ktx2": 13192151,
+  "assets/lm/LM_Atlas_01_kitchen.ktx2": 10688208,
+  "assets/lm/Table_env.ktx2": 1992136,
+  "assets/lm/Table_kitchen.ktx2": 1371939,
+  "assets/lm/Table_ostrov.ktx2": 2293800,
+  "assets/lm/Table_pol_p0.ktx2": 207719,
+  "assets/lm/Table_pol_p1.ktx2": 209428,
+  "assets/lm/Island_env.ktx2": 13396150,
+  "assets/lm/Island_kitchen.ktx2": 11724526,
+  "assets/lm/Island_ostrov.ktx2": 12985374,
+  "assets/lm/Island_pol_p0.ktx2": 1296833,
+  "assets/lm/Island_pol_p1.ktx2": 1275624,
+  "assets/lm/LM_Atlas_00_env.ktx2": 13064420,
+  "assets/lm/LM_Atlas_00_kitchen.ktx2": 9352291,
+  "assets/lm/Planters_env.ktx2": 164612,
+  "assets/lm/Planters_kitchen.ktx2": 178281,
+  "assets/lm/Planters_ostrov.ktx2": 220863,
   "assets/lm/Planters_pol_p0.ktx2": 33808,
-  "assets/lm/Planters_pol_p1.ktx2": 36389,
-  "assets/lm/Floor_Hall_env.ktx2": 16571596,
-  "assets/lm/Floor_Hall_kitchen.ktx2": 9631938,
+  "assets/lm/Planters_pol_p1.ktx2": 36404,
+  "assets/lm/Floor_Hall_env.ktx2": 16565601,
+  "assets/lm/Floor_Hall_kitchen.ktx2": 9655181,
   "assets/tex/Material___2147483589_M5735_transl_3d1c65ac.ktx2": 11880848,
   "assets/tex/Material__2147483633_M15199_transl_523d8591.ktx2": 388026,
   "assets/tex/Material___2147483421_M19921_transl_3d1c65ac.ktx2": 3197216,

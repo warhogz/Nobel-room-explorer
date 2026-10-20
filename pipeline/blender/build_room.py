@@ -616,14 +616,18 @@ report["perforated_replaced"] = replaced
 
 # ------------------------------------------------------------------ decimate dense purchased models
 CAP = 12000
+# chair seats and backs are seen up close and are all curves: decimated to 12k they read faceted
+CAP_SEAT = 40000
+SEAT = re.compile(r"^(sitting|chair|stool|seat)", re.I)
 dec = 0
 for o in scene.objects:
     if o.type != "MESH" or o.name in HERO_NAMES or o.name.startswith(("Floor", "Ground")):
         continue
     f = len(o.data.polygons)
-    if f > CAP:
+    cap = CAP_SEAT if SEAT.match(o.name) else CAP
+    if f > cap:
         md = o.modifiers.new("dec", "DECIMATE")
-        md.ratio = CAP / f
+        md.ratio = cap / f
         md.use_collapse_triangulate = True
         with bpy.context.temp_override(object=o, active_object=o):
             bpy.ops.object.modifier_apply(modifier=md.name)

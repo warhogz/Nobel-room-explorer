@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { guardFullLoad } from './lite'
 
 /**
  * Honest preloader state. The scene is only revealed when everything the first frame needs is done:
@@ -41,6 +42,7 @@ export const useLoad = create<LoadState>((set, get) => ({
   setStage: (s) => {
     const order: LoadStage[] = ['download', 'decode', 'compile', 'warmup', 'ready']
     if (order.indexOf(s) > order.indexOf(get().stage)) set({ stage: s, stageSince: performance.now() })
+    if (s === 'ready') guardFullLoad(false)
   },
 }))
 

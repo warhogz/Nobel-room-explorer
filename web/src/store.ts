@@ -1,16 +1,19 @@
 import { create } from 'zustand'
 import { CORONA_DEFAULTS, type CoronaTMParams } from './three/CoronaToneMapping'
 import type { GroupId, GroupMix } from './three/lightmix'
+import { LITE } from './lite'
 
 export type PresetId = '030' | '08' | '10' | '12' | '28'
 
-export const PRESETS: { id: PresetId; label: string; ref: string }[] = [
+const ALL_PRESETS: { id: PresetId; label: string; ref: string }[] = [
   { id: '030', label: 'Overview', ref: 'ref/030.jpg' },
   { id: '10', label: 'Island & table', ref: 'ref/10.jpg' },
   { id: '08', label: 'Table side', ref: 'ref/08.jpg' },
   { id: '12', label: 'Island front', ref: 'ref/12.jpg' },
   { id: '28', label: 'Dining hall', ref: 'ref/28.jpg' },
 ]
+/** the phone scene has no hall: only the views of the island and the table */
+export const PRESETS = LITE ? ALL_PRESETS.filter((p) => p.id === '10' || p.id === '08' || p.id === '12') : ALL_PRESETS
 
 export const GROUP_LABELS: Record<GroupId, string> = {
   kitchen: 'Interior lights',

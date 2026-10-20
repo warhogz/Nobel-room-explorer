@@ -7,7 +7,8 @@ import { useLoad } from '../loading'
 import { useStore, type PresetId } from '../store'
 import { world } from './Kitchen'
 import { anchors } from './live'
-import { WALK_FOV } from './Walk'
+import { castCollider, WALK_FOV } from './Walk'
+import { LITE } from '../lite'
 
 const BASE = import.meta.env.BASE_URL
 const DEG = 180 / Math.PI
@@ -70,6 +71,7 @@ const _dir = new THREE.Vector3()
 const _side = new THREE.Vector3()
 const _up = new THREE.Vector3()
 const _o = new THREE.Vector3()
+const _t2 = new THREE.Vector3()
 const ARM_PAD = 0.28 // stay this far in front of walls
 function clearDistance(target: THREE.Vector3, dir: THREE.Vector3, far: number) {
   // a thick ray: centre + 4 offsets, so the near plane corners do not graze walls either
@@ -84,8 +86,48 @@ function clearDistance(target: THREE.Vector3, dir: THREE.Vector3, far: number) {
     raycaster.far = d
     const hit = raycaster.intersectObjects(world.colliders, false)[0]
     if (hit) d = Math.min(d, hit.distance)
+    // furniture, the island and the table too (front faces only: the target may sit inside the island)
+    d = Math.min(d, castCollider(_o, dir, d))
   }
   return d
+}
+
+/**
+ * Where the orbit target may go (panning, click-to-move): like the walker, it cannot cross a wall, and there is
+ * always floor under it; it stays between knee and lamp height. On phones it stays over the island's floor disc.
+ */
+const _down = new THREE.Vector3(0, -1, 0)
+const _step = new THREE.Vector3()
+const LITE_C = new THREE.Vector3(0.4, 0, 0)
+function hasFloorUnder(p: THREE.Vector3) {
+  raycaster.set(p, _down)
+  raycaster.far = 4
+  const hit = raycaster.intersectObjects(world.colliders, false)[0]
+  let o: THREE.Object3D | null = hit?.object ?? null
+  while (o && !/^Floor_/.test(o.name)) o = o.parent
+  return !!o
+}
+function allowedTarget(from: THREE.Vector3, to: THREE.Vector3, out: THREE.Vector3) {
+  out.copy(to)
+  if ((window as Window & { __camFree?: boolean }).__camFree) return out // ?dev inspection
+  out.y = THREE.MathUtils.clamp(out.y, 0.25, LITE ? 1.6 : 2.6)
+  if (LITE) {
+    const dx = out.x - LITE_C.x
+    const dz = out.z - LITE_C.z
+    const r = Math.hypot(dx, dz)
+    if (r > 1.8) out.set(LITE_C.x + (dx / r) * 1.8, out.y, LITE_C.z + (dz / r) * 1.8)
+    return out
+  }
+  _step.copy(out).sub(from)
+  const len = _step.length()
+  if (len < 1e-5) return out
+  _step.divideScalar(len)
+  raycaster.set(from, _step)
+  raycaster.far = len + 0.35
+  const wall = raycaster.intersectObjects(world.colliders, false)[0]
+  if (wall) out.copy(from).addScaledVector(_step, Math.max(0, wall.distance - 0.35))
+  if (!hasFloorUnder(out)) out.copy(from)
+  return out
 }
 
 const ISO_VIEW = { position: [2.75, 1.85, 2.65] as const, target: [0, 0.42, 0] as const }
@@ -227,19 +269,39 @@ export function CameraRig() {
     return () => window.removeEventListener('nik-move-to', onMove)
   }, [freeLook])
 
+  // panning: drag up/down moves along the floor (not up the wall), like a plan
+  useEffect(() => {
+    const c = ref.current
+    if (c) c.verticalDragToForward = true
+  }, [])
+
   // spring arm: after camera-controls placed the camera (-1), before the walker (-0.5) and the scene (0)
   const armNear = useRef(0.05)
+  /** last orbit target that was inside the rooms */
+  const validTarget = useRef<THREE.Vector3 | null>(null)
   useFrame((_, dt) => {
     const st = useStore.getState()
     const c = ref.current
     // (no walls to stop at while the room is dissolved around the island)
     const active = !!c && ready && st.mode === 'orbit' && !st.compareOn && !st.isolate && (userCam.current || !st.preset)
     if (!active || !c) {
+      // presets / the intro / the walker place the target inside the rooms: that is where panning starts from
+      validTarget.current = c ? c.getTarget(validTarget.current ?? new THREE.Vector3()) : null
       arm.current = null
       armNear.current = 0.05
       return
     }
     const target = c.getTarget(_o.clone())
+    if (!validTarget.current) validTarget.current = target.clone()
+    else {
+      const ok = allowedTarget(validTarget.current, target, _t2)
+      if (ok.distanceToSquared(target) > 1e-8) {
+        c.moveTo(ok.x, ok.y, ok.z, false)
+        c.update(0)
+        target.copy(ok)
+      }
+      validTarget.current.copy(target)
+    }
     _dir.copy(camera.position).sub(target)
     const want = _dir.length()
     if (want < 1e-3) return
@@ -299,10 +361,10 @@ export function CameraRig() {
       makeDefault
       enabled={mode === 'orbit' && ready}
       minDistance={focus ? 0.35 : 0.8}
-      maxDistance={9}
+      maxDistance={LITE ? 5.5 : 9}
       maxPolarAngle={THREE.MathUtils.degToRad(88)}
       dollySpeed={0.6}
-      truckSpeed={0}
+      truckSpeed={1.2}
       onStart={() => {
         ref.current?.getPosition(dragFrom.current)
         // taking the camera: from here on the walls are solid

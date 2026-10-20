@@ -23,12 +23,17 @@ from PIL import Image
 
 ROOT = os.path.abspath(sys.argv[1])
 B = os.path.join(ROOT, "build")
-SRC = os.path.join(B, "web_room")
+# NIK_LITE=1: the phone scene (export_room_glb.py --lite -> build/web_lite) into web/public/assets-lite, lightmaps and
+# textures at 1K (the onyx at 2K); the translucency maps / perforation mask are shared with the full set
+LITE = os.environ.get("NIK_LITE") == "1"
+PUB_NAME = "assets-lite" if LITE else "assets"
+SRC = os.path.join(B, "web_lite" if LITE else "web_room")
 BAKE = os.path.join(B, "bake_room")
-PUB = os.path.join(ROOT, "web", "public", "assets")
+PUB = os.path.join(ROOT, "web", "public", PUB_NAME)
 LM_OUT = os.path.join(PUB, "lm")
-TEX_OUT = os.path.join(PUB, "tex")
-TMP = os.path.join(B, "web_room_tmp")
+TEX_OUT = os.path.join(ROOT, "web", "public", "assets", "tex")
+TMP = os.path.join(B, "web_lite_tmp" if LITE else "web_room_tmp")
+LM_MAX = 1024 if LITE else 2048
 for d in (PUB, LM_OUT, TEX_OUT, TMP):
     os.makedirs(d, exist_ok=True)
 RGBM_RANGE = 16.0
@@ -78,7 +83,10 @@ if "lm" in ONLY:
     bm = json.load(open(os.path.join(BAKE, "bake_manifest.json")))
     lm_manifest = {"rgbmRange": RGBM_RANGE, "samples": bm.get("samples"), "objects": {}}
     PER_LIGHT_RE = re.compile(r"^(\w+?)_(\d+)$")
+    present = set(json.load(open(os.path.join(SRC, "objects.json")))) if os.path.exists(os.path.join(SRC, "objects.json")) else None
     for obj, info in bm["objects"].items():
+        if present is not None and obj not in present:
+            continue
         size = info["size"]
         mips = size >= 4096 or obj.startswith("LM_Atlas") or obj == "Floor_Hall"
         entry = {"size": size, "groups": {}, "mipmaps": mips}
@@ -98,13 +106,16 @@ if "lm" in ONLY:
             for t in range(0, n, 4):
                 chans = [np.sqrt(np.clip(lums[i] / S, 0, 1)) if i < n else np.zeros_like(lums[0]) for i in range(t, t + 4)]
                 png = os.path.join(TMP, "%s_%s_p%d.png" % (obj, g, t // 4))
-                Image.fromarray((np.dstack(chans) * 255 + 0.5).astype(np.uint8), "RGBA").save(png)
+                im = Image.fromarray((np.dstack(chans) * 255 + 0.5).astype(np.uint8), "RGBA")
+                if im.width > LM_MAX:
+                    im = im.resize((LM_MAX, LM_MAX), Image.LANCZOS)
+                im.save(png)
                 ktx(png, os.path.join(LM_OUT, "%s_%s_p%d.ktx2" % (obj, g, t // 4)), False)
-                urls.append("assets/lm/%s_%s_p%d.ktx2" % (obj, g, t // 4))
+                urls.append("%s/lm/%s_%s_p%d.ktx2" % (PUB_NAME, obj, g, t // 4))
             entry.setdefault("perLight", {})[g] = {"count": n, "scale": S, "encoding": "sqrt", "urls": urls}
             print("  lm %-14s %-8s per-light x%d scale=%.3f" % (obj, g, n, S))
-        hdr_size = min(size, 2048)
-        entry["size"] = hdr_size if mips else size
+        hdr_size = min(size, LM_MAX)
+        entry["size"] = hdr_size
         for g, f in sorted(info["files"].items()):
             if PER_LIGHT_RE.match(g):
                 continue
@@ -116,7 +127,7 @@ if "lm" in ONLY:
                 cmd.append("--generate-mipmap")
             run(cmd + [os.path.join(BAKE, f["file"]), out])
             # alpha samples as 1: rgb * 1 * range / range = linear HDR
-            entry["groups"][g] = {"url": "assets/lm/%s_%s.ktx2" % (obj, g), "scale": RGBM_RANGE, "encoding": "rgb9e5",
+            entry["groups"][g] = {"url": "%s/lm/%s_%s.ktx2" % (PUB_NAME, obj, g), "scale": RGBM_RANGE, "encoding": "rgb9e5",
                                   "p50": f["stats"]["p50"], "p99": f["stats"]["p99"]}
             scale = RGBM_RANGE
             print("  lm %-14s %-8s scale=%.3f  %d KB" % (obj, g, scale, os.path.getsize(out) // 1024))
@@ -130,7 +141,23 @@ if "lm" in ONLY:
                 lm_manifest[k] = old[k]
     json.dump(lm_manifest, open(lm_path, "w"), indent=1)
 
-if "tex" in ONLY:
+if "tex" in ONLY and LITE:  # only the island onyx glows in the phone scene: its translucency map at 2K
+    lm_manifest = json.load(open(lm_path))
+    mats = json.load(open(os.path.join(B, "materials_room", "materials.json"), encoding="utf-8"))["materials"]
+    lm_manifest["textures"] = {}
+    os.makedirs(os.path.join(PUB, "tex"), exist_ok=True)
+    for name, m in mats.items():
+        tr = (m.get("translucency") or {}).get("colorTex")
+        if not tr or m.get("origName") != "Material #-2147483589":
+            continue
+        stem = os.path.splitext(tr)[0]
+        png = os.path.join(TMP, stem + "_2k.png")
+        Image.open(os.path.join(B, "materials_room", "tex", tr)).convert("RGB").resize((2048, 2048), Image.LANCZOS).save(png)
+        run(["ktx", "create", "--format", "R8G8B8_SRGB", "--encode", "uastc", "--uastc-quality", "2", "--zstd", "18",
+             "--generate-mipmap", png, os.path.join(PUB, "tex", stem + ".ktx2")])
+        lm_manifest["textures"][m["origName"]] = "%s/tex/%s.ktx2" % (PUB_NAME, stem)
+    json.dump(lm_manifest, open(lm_path, "w"), indent=1)
+elif "tex" in ONLY:
     lm_manifest = json.load(open(lm_path))
     # translucency colour maps + perforation mask (not part of glTF)
     mats = json.load(open(os.path.join(B, "materials_room", "materials.json"), encoding="utf-8"))["materials"]
@@ -163,22 +190,24 @@ if "glb" in ONLY:
     big = sorted(k for k, m in mats.items() if areas.get(k, 0) > 2.5 or m.get("surface"))
     print("high-quality materials:", len(big))
     pat_big = "*{%s}_*" % ",".join(big)
-    gt("uastc", t[1], t[2], "--pattern", "*2147483589_*nrm*", "--level", "2", "--resize", "2048", "--rdo",
+    hero, nrm, base, small = ("2048", "2048", "2048", "1024") if not LITE else ("2048", "1024", "1024", "512")
+    gt("uastc", t[1], t[2], "--pattern", "*2147483589_*nrm*", "--level", "2", "--resize", hero, "--rdo",
        "--rdo-lambda", "1.0", "--zstd", "18")
-    gt("uastc", t[2], t[3], "--pattern", "*2147483589*", "--level", "2", "--rdo", "--rdo-lambda", "1.0", "--zstd", "18")
-    # every other normal map: 1K is plenty for bevels / grain
-    gt("uastc", t[3], t[4], "--slots", "normalTexture", "--level", "1", "--resize", "1024", "--rdo", "--rdo-lambda", "2",
-       "--zstd", "18")
-    gt("uastc", t[4], t[5], "--pattern", pat_big, "--slots", "baseColorTexture", "--level", "2", "--resize", "2048",
+    gt("uastc", t[2], t[3], "--pattern", "*2147483589*", "--level", "2", "--resize", "4096" if not LITE else hero, "--rdo",
+       "--rdo-lambda", "1.0", "--zstd", "18")
+    # every other normal map: 1K is plenty for bevels / grain (512 on phones)
+    gt("uastc", t[3], t[4], "--slots", "normalTexture", "--level", "1", "--resize", "1024" if not LITE else "512", "--rdo",
+       "--rdo-lambda", "2", "--zstd", "18")
+    gt("uastc", t[4], t[5], "--pattern", pat_big, "--slots", "baseColorTexture", "--level", "2", "--resize", base,
        "--rdo", "--rdo-lambda", "3", "--zstd", "18")
-    gt("etc1s", t[5], t[6], "--quality", "255", "--resize", "1024")
+    gt("etc1s", t[5], t[6], "--quality", "255", "--resize", small)
     # per-vertex light (RGBM in _NIKK/_NIKE): 8 bit is the precision it was encoded for
     run(["node", os.path.join(ROOT, "pipeline", "web", "quantize_vertex_light.mjs"), t[6], t[7]])
     final = os.path.join(TMP, "scene.glb")
     gt("meshopt", t[7], final, "--level", "high")
     print("scene.glb %.1f MB" % (os.path.getsize(final) / 2 ** 20))
     # GitHub refuses files over 100 MB and hosts like Vercel skip Git LFS: ship the scene in plain-git pieces
-    split_dir = os.path.join(PUB, "scene")
+    split_dir = os.path.join(PUB, "scene")  # noqa
     shutil.rmtree(split_dir, ignore_errors=True)
     os.makedirs(split_dir)
     if os.path.exists(os.path.join(PUB, "scene.glb")):
@@ -188,15 +217,16 @@ if "glb" in ONLY:
     for i in range(0, len(data), PART):
         name = "scene/scene_%d.bin" % (i // PART)
         open(os.path.join(PUB, name), "wb").write(data[i:i + PART])
-        parts.append("assets/" + name)
+        parts.append(PUB_NAME + "/" + name)
     lm_manifest = json.load(open(lm_path))
-    lm_manifest["parts"] = {"assets/scene.glb": parts}
+    lm_manifest["parts"] = {PUB_NAME + "/scene.glb": parts}
     json.dump(lm_manifest, open(lm_path, "w"), indent=1)
-    for f in ("cameras.json", "lights.json"):
-        shutil.copy(os.path.join(SRC, f), os.path.join(PUB, f))
+    if not LITE:  # cameras / floor lights are shared
+        for f in ("cameras.json", "lights.json"):
+            shutil.copy(os.path.join(SRC, f), os.path.join(PUB, f))
 # download sizes for an honest preloader: every file the viewer fetches before showing the scene
 lm_manifest = json.load(open(lm_path))
-files = {u: None for u in lm_manifest.get("parts", {}).get("assets/scene.glb", ["assets/scene.glb"])}
+files = {u: None for u in lm_manifest.get("parts", {}).get(PUB_NAME + "/scene.glb", [PUB_NAME + "/scene.glb"])}
 files["assets/chandelier.glb"] = None
 for info in lm_manifest["objects"].values():
     for g in info.get("groups", {}).values():

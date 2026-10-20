@@ -7,6 +7,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import { expectFiles, fetchBuffer, fetchParts, fileDone, reportBytes, useLoad } from '../loading'
+import { ASSETS, guardFullLoad, LITE } from '../lite'
 import { MIX_DEFAULTS, useStore, type FaucetFinish } from '../store'
 import { setupChandelier } from './Chandelier'
 import { buildWalkCollider } from './Walk'
@@ -86,18 +87,21 @@ interface Loaded {
 
 /** everything the first frame needs, fetched in parallel with byte-accurate progress */
 async function loadAll(gl: THREE.WebGLRenderer): Promise<Loaded> {
-  const manifest: LightmapManifest = await (await fetch(`${BASE}assets/lightmaps.json`)).json()
+  guardFullLoad(true)
+  const manifest: LightmapManifest = await (await fetch(`${BASE}${ASSETS}lightmaps.json`)).json()
+  // phones: no glass sculpture (it hangs from the ceiling of the room and costs a transmission pass)
+  if (LITE && manifest.bytes) delete manifest.bytes['assets/chandelier.glb']
   expectFiles(manifest.bytes ?? {})
   const gltfLoader = new GLTFLoader().setKTX2Loader(getKTX2(gl)).setMeshoptDecoder(MeshoptDecoder)
   const glb = (rel: string) => {
     const parts = manifest.parts?.[rel]
     return (parts ? fetchParts(BASE, parts) : fetchBuffer(BASE, rel)).then((buf) =>
-      gltfLoader.parseAsync(buf, `${BASE}assets/`),
+      gltfLoader.parseAsync(buf, `${BASE}${ASSETS}`),
     )
   }
   const [gltf, chandelier, assets] = await Promise.all([
-    glb('assets/scene.glb'),
-    glb('assets/chandelier.glb').catch((e) => {
+    glb(`${ASSETS}scene.glb`),
+    (LITE ? Promise.resolve(null) : glb('assets/chandelier.glb')).catch((e) => {
       console.warn('chandelier not loaded', e)
       fileDone('assets/chandelier.glb')
       return null
@@ -108,7 +112,8 @@ async function loadAll(gl: THREE.WebGLRenderer): Promise<Loaded> {
 }
 
 // ------------------------------------------------------------------------------------------------ shading
-const sssUniform = { value: 0.55 }
+// light scattered inside the onyx: a little only (more washed the veins out into a waxy haze)
+const sssUniform = { value: 0.18 }
 
 /** live LightMix weights shared by every room material (lightmap atlases and per-vertex lightmaps) */
 export const roomUniforms = {
@@ -306,8 +311,9 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
 }
 
 /** polished onyx / lacquered walnut: physical material with a clear coat over the PBR base */
-const COATS: Record<string, { clearcoat: number; clearcoatRoughness: number }> = {
-  'Material #-2147483589': { clearcoat: 1.0, clearcoatRoughness: 0.07 },
+const COATS: Record<string, { clearcoat: number; clearcoatRoughness: number; minRoughness?: number }> = {
+  // honed-and-polished onyx: crisp but restrained reflections (a full glass-like coat read as wax)
+  'Material #-2147483589': { clearcoat: 0.45, clearcoatRoughness: 0.16, minRoughness: 0.3 },
   'Material #76111117': { clearcoat: 0.45, clearcoatRoughness: 0.28 },
 }
 /** per-material corrections of the Corona conversion (orig. Max material name) */
@@ -324,6 +330,8 @@ const TWEAKS: Record<
     metalness: number
     /** floor for a pure-black base colour (Corona black leather still shows a dark sheen) */
     minColor: [number, number, number]
+    /** base colour (linear) measured from the renders, for procedural Corona colour chains */
+    color: [number, number, number]
     spec: number
   }>
 > = {
@@ -342,10 +350,11 @@ const TWEAKS: Record<
   // reflections, so part of it takes the baked light (metalness < 1); colours measured against renders 10 / 12
   'Material #2147483647': { tint: [2.06, 2.3, 2.48], metalness: 0.45, env: 1.6 },
   'Material #-2147483422': { tint: [1.71, 1.89, 2.06], metalness: 0.75, env: 2.6, roughMul: 0.8 },
-  // black leather chairs / sofas: dark sheen instead of a void
-  'Material #-2147483443': { minColor: [0.03, 0.026, 0.023], spec: 0.7, roughness: 0.42, env: 1.1 },
-  'Material #-2147483646': { minColor: [0.03, 0.026, 0.023], spec: 0.7, roughness: 0.42, env: 1.1 },
-  'Material #-2147483565': { minColor: [0.03, 0.026, 0.023], spec: 0.7, roughness: 0.42, env: 1.1 },
+  // upholstery whose Corona colour is a Falloff / Mix / Color Correction chain, measured on render 28: camel
+  // suede dining chairs; the tall angled lounge screens ("Leather_net_brown") share the very same colour chain
+  'Material #-2147483443': { color: [0.5, 0.25, 0.11], spec: 0.35, roughness: 0.8, env: 0.35 },
+  'Material #-2147483646': { color: [0.5, 0.25, 0.11], spec: 0.5, roughness: 0.6, env: 0.6 },
+  'Material #-2147483565': { color: [0.06, 0.032, 0.016], spec: 0.7, roughness: 0.42, env: 1.1 },
   // sofa cushions (accent fabric): their gloss map is missing from the archive
   'Material #-214748313700675': { roughness: 0.85, env: 0.3 },
 }
@@ -355,6 +364,8 @@ const RELIEF: Record<string, number> = {
   'Material #76111117': 1.3,
   // bar stool nubuck: the converted bump read as blotches
   'Material #2147455760': 0.35,
+  // suede: a fine grain, not a leather crease
+  'Material #-2147483443': 0.4,
 }
 
 interface Nik {
@@ -381,6 +392,7 @@ function toPhysical(src: THREE.MeshStandardMaterial, nik: Nik) {
   THREE.MeshStandardMaterial.prototype.copy.call(m, src)
   m.clearcoat = coat.clearcoat
   m.clearcoatRoughness = coat.clearcoatRoughness
+  if (coat.minRoughness) m.roughness = Math.max(m.roughness, coat.minRoughness)
   return m
 }
 
@@ -520,6 +532,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     if (!nik.metal && !mat.roughnessMap && mat.roughness < 0.02 && !COATS[nik.orig ?? '']) mat.roughness = 0.3
     if (tw?.roughness !== undefined) mat.roughness = tw.roughness
     if (tw?.env !== undefined) mat.envMapIntensity = tw.env
+    if (tw?.color) mat.color.setRGB(...tw.color)
     if (tw?.tint) mat.color.multiply(new THREE.Color(...tw.tint))
     if (tw?.metalness !== undefined) mat.metalness = tw.metalness
     if (tw?.roughMul !== undefined) mat.roughness *= tw.roughMul
@@ -716,7 +729,8 @@ export function Kitchen() {
     m.raycast = () => {}
     return m
   }, [])
-  const reflection = useMemo(() => new PlanarReflection(0.5), [])
+  // phones: the floor mirror pass at a third of the (already capped) resolution
+  const reflection = useMemo(() => new PlanarReflection(LITE ? 0.33 : 0.5), [])
   const probes = useMemo(() => new RoomProbes(gl), [gl])
   useEffect(
     () => () => {
@@ -828,7 +842,13 @@ export function Kitchen() {
     const ie = ip * ip * (3 - 2 * ip)
     isoBg.setRGB(0.006, 0.0055, 0.005).lerp(ISO_BG_DAY, live.light)
     isoUniforms.nikIsoBg.value.copy(isoBg)
-    if (ip > 0) {
+    if (LITE) {
+      // phone scene: the island, table and stools stand on a disc of the kitchen floor in the studio space
+      isoUniforms.nikIsoR.value = 1e4
+      isoUniforms.nikIsoFloorR.value = 2.5
+      isoUniforms.nikIsoFade.value = 0.9
+      isoUniforms.nikIsoEdge.value = 0
+    } else if (ip > 0) {
       isoUniforms.nikIsoR.value = THREE.MathUtils.lerp(24, -0.3, ie)
       isoUniforms.nikIsoFloorR.value = THREE.MathUtils.lerp(24, 2.1, ie) // the kitchen floor ends 2.0-2.2 m from the island
       isoUniforms.nikIsoFade.value = THREE.MathUtils.lerp(0.4, 0.8, ie)
@@ -847,12 +867,12 @@ export function Kitchen() {
       }
       g.visible = d < R
     }
-    shell.visible = R > 12
+    shell.visible = !LITE && R > 12
     const hangers = chandelier?.scene.getObjectByName('Chandelier_hangers')
     if (hangers) hangers.visible = R > 3.5
 
     // sky through the windows: bright daylight, deep blue evening (the studio backdrop in "island only")
-    scene.background = ip > 0 ? isoBg : sky
+    scene.background = ip > 0 || LITE ? isoBg : sky
     scene.backgroundBlurriness = 0
     scene.backgroundIntensity = moodLook.nightSky + (moodLook.daySky - moodLook.nightSky) * live.light * live.light
 
@@ -863,7 +883,7 @@ export function Kitchen() {
       probeBounces.current = 3
     }
     // (paused while the room is dissolved: the island keeps the room's reflections and the room comes back with them)
-    if (ip === 0 && (probeDirty.current || probeBounces.current > 0) && (probeAge.current > 6 || !scene.environment)) {
+    if ((ip === 0 || LITE) && (probeDirty.current || probeBounces.current > 0) && (probeAge.current > 6 || !scene.environment)) {
       scene.environment = probes.update(gl, scene, [...glass, ...probeHide])
       probeAge.current = 0
       if (!changed) probeBounces.current--
