@@ -10,7 +10,9 @@ import { Kitchen } from './three/Kitchen'
 import { GROUPS } from './three/lightmix'
 import { live } from './three/live'
 import { WalkControls } from './three/Walk'
-import { STAGE_LABEL, STAGE_SPAN, useLoad } from './loading'
+import { STAGE_SPAN, useLoad } from './loading'
+
+const LOGO = `${import.meta.env.BASE_URL}logo.svg`
 import { IsolateButton, Joystick, WalkButton, WalkHint } from './ui/WalkUI'
 import { FINISHES, GROUP_LABELS, PRESETS, useStore, type PresetId } from './store'
 import { LITE } from './lite'
@@ -42,7 +44,7 @@ function Loader() {
   const stage = useLoad((s) => s.stage)
   const bar = useRef<HTMLSpanElement>(null)
   const pct = useRef<HTMLSpanElement>(null)
-  const mb = useRef<HTMLSpanElement>(null)
+  const fill = useRef<HTMLImageElement>(null)
   const [gone, setGone] = useState(false)
   useEffect(() => {
     let raf = 0
@@ -57,8 +59,9 @@ function Loader() {
       else target = a + (b - a) * 0.9 * (1 - Math.exp(-(performance.now() - stageSince) / 2500))
       shown = Math.max(shown, shown + (target - shown) * 0.12)
       if (bar.current) bar.current.style.transform = `scaleX(${Math.max(0.02, shown)})`
-      if (pct.current) pct.current.textContent = `${Math.floor(shown * 100)}%`
-      if (mb.current) mb.current.textContent = total ? `${(loaded / 2 ** 20).toFixed(0)} / ${(total / 2 ** 20).toFixed(0)} MB` : ''
+      if (pct.current) pct.current.textContent = `${Math.floor(shown * 100)}`
+      // the logo is written in as the scene arrives
+      if (fill.current) fill.current.style.clipPath = `inset(0 ${(100 - shown * 100).toFixed(2)}% 0 0)`
       if (stage !== 'ready' || shown < 0.999) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -71,17 +74,14 @@ function Loader() {
   }, [stage])
   return (
     <div className={`loader ${stage === 'ready' ? 'loader--hidden' : ''} ${gone ? 'loader--gone' : ''}`}>
-      <div className="loader__brand">Nobel Island Kitchen</div>
-      <div className="loader__bar">
+      <div className="loader__logo" aria-label="Nobel">
+        <img src={LOGO} alt="" className="loader__logo-dim" />
+        <img src={LOGO} alt="" className="loader__logo-fill" ref={fill} />
+      </div>
+      <div className="loader__line">
         <span ref={bar} />
       </div>
-      <div className="loader__row">
-        <span className="loader__stage" key={stage}>
-          {STAGE_LABEL[stage]}
-        </span>
-        <span ref={pct} className="loader__pct" />
-      </div>
-      <span ref={mb} className="loader__mb" />
+      <span ref={pct} className="loader__pct" />
     </div>
   )
 }
@@ -274,7 +274,7 @@ function UI() {
       <CompareRender />
       <Tooltip />
       <header className={`brand ${ready}`}>
-        <div className="brand__title">Nobel Island Kitchen</div>
+        <img className="brand__logo" src={LOGO} alt="Nobel" />
         <div className="brand__sub">{LITE ? 'Onyx island · table & stools' : 'Onyx island · Villa kitchen & hall'}</div>
       </header>
       <div className={`top-right ${ready}`}>

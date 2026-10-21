@@ -622,7 +622,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         if (glow) m.userData.nikSrc = backlit(src, nik)
         const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
         black.needsUpdate = true
-        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso, hollow: isIsland }, mixer.target.texture)
+        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso }, mixer.target.texture)
       })
       return
     }
@@ -653,12 +653,18 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       // multi-material objects are groups of meshes: the role comes from the top-level object
       let top: THREE.Object3D = o
       while (top.parent && top.parent !== root) top = top.parent
-      prep(o, 'none', { iso: top.name === 'Ground' ? 'floor' : ISO_KEEP.has(top.name) ? 'keep' : 'room' })
+      // the hand shower's grille slots look into its hollow body: dark inside, not the counter behind
+      prep(o, 'none', { iso: top.name === 'Ground' ? 'floor' : ISO_KEEP.has(top.name) ? 'keep' : 'room', hollow: top.name === 'Faucets' })
     }
   })
   if (faucet) {
     const f = faucet as THREE.Mesh
-    f.material = (f.material as THREE.MeshStandardMaterial).clone()
+    const fm = f.material as THREE.MeshStandardMaterial
+    const own = fm.clone()
+    // (clone() drops the room shader patch)
+    own.onBeforeCompile = fm.onBeforeCompile
+    own.customProgramCacheKey = fm.customProgramCacheKey
+    f.material = own
     anchors.faucet = new THREE.Box3().setFromObject(f).getCenter(new THREE.Vector3())
   }
   // what is solid: architecture stops the orbit camera; the walker also bumps into the island and furniture.
@@ -857,8 +863,9 @@ export function Kitchen() {
     if (LITE) {
       // phone scene: the island, table and stools stand on a disc of the kitchen floor in the studio space
       isoUniforms.nikIsoR.value = 1e4
-      isoUniforms.nikIsoFloorR.value = 2.5
-      isoUniforms.nikIsoFade.value = 0.9
+      // fully faded before the kitchen floor ends (its edge at the walls, 2.2 m to the sides, read as a torn rug)
+      isoUniforms.nikIsoFloorR.value = 2.1
+      isoUniforms.nikIsoFade.value = 1.15
       isoUniforms.nikIsoEdge.value = 0
     } else if (ip > 0) {
       isoUniforms.nikIsoR.value = THREE.MathUtils.lerp(24, -0.3, ie)
