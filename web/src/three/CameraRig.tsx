@@ -7,8 +7,13 @@ import { useLoad } from '../loading'
 import { useStore, type PresetId } from '../store'
 import { world } from './Kitchen'
 import { anchors } from './live'
-import { castCollider, WALK_FOV } from './Walk'
+import { nearCollider, WALK_FOV } from './Walk'
+import CameraControlsImpl from 'camera-controls'
 import { LITE } from '../lite'
+
+const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+/** phones: the island, table and stools in one frame, a step back */
+const LITE_HOME = { position: [3.6, 2.4, 4.6] as const, target: [0.3, 0.5, 0.0] as const }
 
 const BASE = import.meta.env.BASE_URL
 const DEG = 180 / Math.PI
@@ -72,6 +77,7 @@ const _side = new THREE.Vector3()
 const _up = new THREE.Vector3()
 const _o = new THREE.Vector3()
 const _t2 = new THREE.Vector3()
+const _p = new THREE.Vector3()
 const ARM_PAD = 0.28 // stay this far in front of walls
 function clearDistance(target: THREE.Vector3, dir: THREE.Vector3, far: number) {
   // a thick ray: centre + 4 offsets, so the near plane corners do not graze walls either
@@ -86,8 +92,6 @@ function clearDistance(target: THREE.Vector3, dir: THREE.Vector3, far: number) {
     raycaster.far = d
     const hit = raycaster.intersectObjects(world.colliders, false)[0]
     if (hit) d = Math.min(d, hit.distance)
-    // furniture, the island and the table too (front faces only: the target may sit inside the island)
-    d = Math.min(d, castCollider(_o, dir, d))
   }
   return d
 }
@@ -179,7 +183,10 @@ export function CameraRig() {
       setIntroDone()
     }
     const t = setTimeout(() => {
-      c.setLookAt(...p.position, ...p.target, true).then(finish)
+      if (LITE) {
+        useStore.getState().freeLook()
+        c.setLookAt(...LITE_HOME.position, ...LITE_HOME.target, true).then(finish)
+      } else c.setLookAt(...p.position, ...p.target, true).then(finish)
     }, 250)
     // the transition promise only resolves at full rest; reveal the UI once the move has visibly settled
     const t2 = setTimeout(finish, 4100)
@@ -272,7 +279,13 @@ export function CameraRig() {
   // panning: drag up/down moves along the floor (not up the wall), like a plan
   useEffect(() => {
     const c = ref.current
-    if (c) c.verticalDragToForward = true
+    if (!c) return
+    c.verticalDragToForward = true
+    // touch: one finger orbits, a pinch zooms (on phones a pure, fast pinch - no accidental panning)
+    c.touches.one = CameraControlsImpl.ACTION.TOUCH_ROTATE
+    c.touches.two = LITE ? CameraControlsImpl.ACTION.TOUCH_DOLLY : CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK
+    c.touches.three = CameraControlsImpl.ACTION.TOUCH_TRUCK
+    c.draggingSmoothTime = TOUCH ? 0.06 : 0.125
   }, [])
 
   // spring arm: after camera-controls placed the camera (-1), before the walker (-0.5) and the scene (0)
@@ -307,7 +320,9 @@ export function CameraRig() {
     if (want < 1e-3) return
     _dir.divideScalar(want)
     const clear = Math.max(0.3, clearDistance(target, _dir, want + ARM_PAD) - ARM_PAD)
-    const allowed = Math.min(want, clear)
+    let allowed = Math.min(want, clear)
+    // furniture: the camera may look past a chair or the island (orbit viewers do), but never sits inside one
+    for (let i = 0; i < 30 && allowed > 0.5 && nearCollider(_p.copy(target).addScaledVector(_dir, allowed), 0.2); i++) allowed -= 0.08
     let a = arm.current ?? want
     // in: quick but continuous (the near plane hides the wall meanwhile); out: gentle
     a += (allowed - a) * (1 - Math.exp(-dt * (allowed < a ? 7 : 3)))
@@ -325,7 +340,8 @@ export function CameraRig() {
     const p = exact[lastPreset.current]
     const pr = presetProjection(p, size.width, size.height)
     const focused = st.focus === 'faucet'
-    goal.current.fov = walking ? WALK_FOV : focused ? 34 : pr.fov
+    // portrait phones: the render frame fit gives a ~100 deg fisheye; capped, the island stays large and undistorted
+    goal.current.fov = walking ? WALK_FOV : focused ? 34 : TOUCH ? Math.min(pr.fov, 72) : pr.fov
     // keep the architectural lens shift of the last preset while orbiting (no jump on the first drag)
     goal.current.shiftPx = walking || focused ? 0 : pr.shiftPx
     const k = 1 - Math.exp(-dt * (introDone ? 4 : 1.6))
@@ -361,9 +377,11 @@ export function CameraRig() {
       makeDefault
       enabled={mode === 'orbit' && ready}
       minDistance={focus ? 0.35 : 0.8}
-      maxDistance={LITE ? 5.5 : 9}
+      maxDistance={LITE ? 8.5 : 9}
       maxPolarAngle={THREE.MathUtils.degToRad(88)}
-      dollySpeed={0.6}
+      dollySpeed={TOUCH ? 1.6 : 0.6}
+      azimuthRotateSpeed={TOUCH ? 0.75 : 1}
+      polarRotateSpeed={TOUCH ? 0.75 : 1}
       truckSpeed={1.2}
       onStart={() => {
         ref.current?.getPosition(dragFrom.current)

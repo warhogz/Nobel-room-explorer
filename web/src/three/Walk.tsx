@@ -103,6 +103,13 @@ export function castCollider(origin: THREE.Vector3, dir: THREE.Vector3, far: num
   return hit ? hit.distance : Infinity
 }
 
+const nearHit = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 }
+/** is a point closer than r to any solid surface (furniture, island, walls up to 2.4 m)? */
+export function nearCollider(p: THREE.Vector3, r: number) {
+  if (!collider) return false
+  return !!collider.bvh.closestPointToPoint(p, nearHit, 0, r)
+}
+
 // ------------------------------------------------------------------------------------------------ controller
 const tmpBox = new THREE.Box3()
 const tmpSeg = new THREE.Line3()
