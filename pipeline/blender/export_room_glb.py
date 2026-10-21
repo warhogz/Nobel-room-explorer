@@ -36,6 +36,23 @@ for m in bpy.data.materials:
     for n in [n for n in nt.nodes if n.name in ("BakeTarget", "TranslMix", "Translucent", "TranslTex", "BakeShader")]:
         nt.nodes.remove(n)
 
+def smooth_vertex_light(me, v, passes=4):
+    """per-vertex bake noise (each vertex its own few hundred samples) shows as blotches on upholstery: a few
+    passes of averaging with the neighbours along the edges, half weight on the vertex itself"""
+    ev = np.empty(len(me.edges) * 2, np.int64)
+    me.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    if not len(ev):
+        return v
+    deg = np.bincount(ev.ravel(), minlength=len(v)).astype(np.float32)[:, None]
+    for _ in range(passes):
+        acc = np.zeros_like(v)
+        np.add.at(acc, ev[:, 0], v[ev[:, 1]])
+        np.add.at(acc, ev[:, 1], v[ev[:, 0]])
+        v = np.where(deg > 0, 0.5 * v + 0.5 * acc / np.maximum(deg, 1), v)
+    return v
+
+
 # ---- vertex lightmaps -> RGBM colour attributes
 vx = [o for o in sc.objects if o.type == "MESH" and o.get("nik_bake") == "vertex"]
 scales = {}
@@ -63,6 +80,7 @@ for o in vx:
             buf = np.empty(len(a.data) * 4, np.float32)
             a.data.foreach_get("color", buf)
             v = np.nan_to_num(buf.reshape(-1, 4)[:, :3]).clip(0, None) * scales[g]
+            v = smooth_vertex_light(me, v)
             mm = np.clip(v.max(1, keepdims=True) / RANGE, 0, 1)
             mm = np.ceil(mm * 255.0) / 255.0
             rgb = np.where(mm > 0, v / np.maximum(mm * RANGE, 1e-8), 0)

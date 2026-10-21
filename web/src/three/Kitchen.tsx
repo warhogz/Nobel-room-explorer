@@ -165,8 +165,11 @@ interface PatchOpts {
   perforated?: THREE.Texture
   /** "island only" role: kept, the floor disc, or (default) the room that dissolves */
   iso?: 'keep' | 'floor' | 'room'
-  /** a shell with no inside (the island has no carcass): its inner faces show as a dark cavity, not the backdrop */
-  hollow?: boolean
+  /**
+   * a shell with no inside (the island has no carcass, the hand shower is a tube): its inner faces are drawn too,
+   * at this fraction of their light - the stone wall in the shade behind a groove, not a hole into the backdrop
+   */
+  hollow?: number
 }
 
 /**
@@ -176,7 +179,7 @@ interface PatchOpts {
  *  - extras: onyx inner glow + SSS, floor planar reflection, perforated bronze holes
  */
 function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
-  if (o.hollow) mat.side = THREE.DoubleSide
+  if (o.hollow !== undefined) mat.side = THREE.DoubleSide
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, roomUniforms, probeUniforms)
     sh.uniforms.nikSss = sssUniform
@@ -308,14 +311,14 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
         'outgoingLight += vec3( 1.0, 0.62, 0.3 ) * nikIsoEdge * ( 1.0 - smoothstep( 0.0, 0.05, nikIsoR - nikIsoD ) );\n#include <opaque_fragment>',
       )
     }
-    if (o.hollow) {
+    if (o.hollow !== undefined) {
       sh.fragmentShader = sh.fragmentShader.replace(
         '#include <opaque_fragment>',
-        'if ( !gl_FrontFacing ) outgoingLight = vec3( 0.006, 0.0048, 0.0036 );\n#include <opaque_fragment>',
+        `if ( !gl_FrontFacing ) outgoingLight *= ${o.hollow.toFixed(3)};\n#include <opaque_fragment>`,
       )
     }
   }
-  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ? 'h' : ''].join('-')
+  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ?? ''].join('-')
   mat.customProgramCacheKey = () => key
 }
 
@@ -343,6 +346,8 @@ const TWEAKS: Record<
     color: [number, number, number]
     /** drop the colour map (a mottled scan that reads as dirt on small curved seats) */
     dropMap: boolean
+    /** the grain maps repeat this many times (stretched once over a seat the nubuck grain read 100x too big) */
+    detail: number
     spec: number
   }>
 > = {
@@ -356,14 +361,14 @@ const TWEAKS: Record<
   // photo backdrops of the view outside the windows: a print, not a mirror
   'Material #-2147483574': { roughness: 1, env: 0 },
   // bar stools: caramel nubuck in the renders (the Corona colour chain is mostly lit warm), soft sheen only
-  'Material #2147455760': { dropMap: true, color: [0.4, 0.2, 0.09], roughness: 0.78, env: 0.4 },
+  'Material #2147455760': { dropMap: true, detail: 8, color: [0.4, 0.2, 0.09], roughness: 0.78, env: 0.4 },
   // brass: in Corona the spots light it directly (glossy highlights + light gradients). Real time has only the probe
   // reflections, so part of it takes the baked light (metalness < 1); colours measured against renders 10 / 12
   'Material #2147483647': { tint: [2.06, 2.3, 2.48], metalness: 0.45, env: 1.6 },
   'Material #-2147483422': { tint: [1.71, 1.89, 2.06], metalness: 0.75, env: 2.6, roughMul: 0.8 },
   // upholstery whose Corona colour is a Falloff / Mix / Color Correction chain, measured on render 28: camel
   // suede dining chairs; the tall angled lounge screens ("Leather_net_brown") share the very same colour chain
-  'Material #-2147483443': { color: [0.5, 0.25, 0.11], spec: 0.35, roughness: 0.8, env: 0.35 },
+  'Material #-2147483443': { color: [0.5, 0.25, 0.11], detail: 6, spec: 0.35, roughness: 0.8, env: 0.35 },
   'Material #-2147483646': { color: [0.5, 0.25, 0.11], spec: 0.5, roughness: 0.6, env: 0.6 },
   'Material #-2147483565': { color: [0.06, 0.032, 0.016], spec: 0.7, roughness: 0.42, env: 1.1 },
   // sofa cushions (accent fabric): their gloss map is missing from the archive
@@ -544,6 +549,14 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     if (tw?.roughness !== undefined) mat.roughness = tw.roughness
     if (tw?.env !== undefined) mat.envMapIntensity = tw.env
     if (tw?.dropMap) mat.map = null
+    if (tw?.detail) {
+      for (const t of [mat.map, mat.normalMap, mat.roughnessMap]) {
+        if (!t) continue
+        t.wrapS = t.wrapT = THREE.RepeatWrapping
+        t.repeat.set(tw.detail, tw.detail)
+        t.needsUpdate = true
+      }
+    }
     if (tw?.color) mat.color.setRGB(...tw.color)
     if (tw?.tint) mat.color.multiply(new THREE.Color(...tw.tint))
     if (tw?.metalness !== undefined) mat.metalness = tw.metalness
@@ -622,7 +635,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         if (glow) m.userData.nikSrc = backlit(src, nik)
         const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
         black.needsUpdate = true
-        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso }, mixer.target.texture)
+        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso, hollow: isIsland ? 0.32 : undefined }, mixer.target.texture)
       })
       return
     }
@@ -654,7 +667,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       let top: THREE.Object3D = o
       while (top.parent && top.parent !== root) top = top.parent
       // the hand shower's grille slots look into its hollow body: dark inside, not the counter behind
-      prep(o, 'none', { iso: top.name === 'Ground' ? 'floor' : ISO_KEEP.has(top.name) ? 'keep' : 'room', hollow: top.name === 'Faucets' })
+      prep(o, 'none', { iso: top.name === 'Ground' ? 'floor' : ISO_KEEP.has(top.name) ? 'keep' : 'room', hollow: top.name === 'Faucets' ? 0.05 : undefined })
     }
   })
   if (faucet) {
