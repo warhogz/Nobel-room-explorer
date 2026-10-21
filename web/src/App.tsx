@@ -344,8 +344,9 @@ export default function App() {
   // UI theme follows the daylight
   const bright = useStore((s) => s.day)
   const walking = useStore((s) => s.mode === 'walk')
+  const loaded = useLoad((s) => s.stage === 'ready')
   return (
-    <div className={`app ${bright ? 'app--light' : ''} ${walking ? 'app--walk' : ''}`}>
+    <div className={`app ${bright ? 'app--light' : ''} ${walking ? 'app--walk' : ''} ${loaded ? 'app--ready' : ''}`}>
       <Canvas
         dpr={LITE ? [1, 1.5] : [1, 2]}
         gl={{ antialias: false, alpha: true, toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: 'high-performance' }}

@@ -31,6 +31,9 @@
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; background: var(--bg); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+/* the room is revealed like lights coming up: out of the dark and a soft focus, while the camera glides in */
+.app canvas { filter: brightness(0.12) blur(12px) saturate(0.5); transform: scale(1.035); }
+.app--ready canvas { filter: none; transform: none; transition: filter 2.2s cubic-bezier(0.3, 0.6, 0.2, 1), transform 2.8s var(--ease-out); }
 button { font: inherit; }
 .app { position: fixed; inset: 0; overflow: hidden; color: var(--ink); font-family: var(--font); }
 .app canvas { display: block; }
@@ -62,10 +65,10 @@ button { font: inherit; }
 .app--light .brand__logo { filter: invert(1) brightness(0.18); }
 /* a quiet caption under the mark: hairline, small caps, wide tracking */
 .brand__sub {
-  display: flex; align-items: center; gap: 10px; margin-top: 4px;
+  display: flex; align-items: center; gap: 10px; margin-top: 10px;
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-2);
 }
-.brand__sub::before { content: ''; width: 22px; height: 1px; background: currentColor; opacity: 0.55; }
+
 
 /* ---------- top right: chip + lights switch ---------- */
 .top-right { position: absolute; top: 24px; right: 28px; z-index: 5; display: flex; align-items: center; gap: 10px; }
@@ -252,7 +255,7 @@ button { font: inherit; }
 /* ---------- loader: the logo written in as the scene arrives, a hairline, the count ---------- */
 .loader {
   position: absolute; inset: 0; z-index: 10; display: grid; place-content: center; justify-items: center; gap: 30px;
-  background: #0b0a09; color: #f4eee7; transition: opacity 1.4s var(--ease-out) 0.15s, filter 1.4s var(--ease-out) 0.15s;
+  background: #0b0a09; color: #f4eee7; transition: opacity 0.9s var(--ease-out), filter 0.9s var(--ease-out);
 }
 .loader--hidden { opacity: 0; filter: blur(12px); pointer-events: none; }
 .loader--gone { display: none; }
@@ -338,10 +341,9 @@ button { font: inherit; }
   .app--light .scrim--top { background: linear-gradient(rgba(247, 242, 235, 0.85), transparent); }
   .app--light .scrim--bottom { background: linear-gradient(transparent, rgba(247, 242, 235, 0.85)); }
 
-  .brand { top: calc(var(--safe-t) + 18px); left: 0; right: 0; display: grid; justify-items: center; }
+  .brand { top: calc(var(--safe-t) + 26px); left: 0; right: 0; display: grid; justify-items: center; }
   .brand__logo { height: 40px; margin-left: 0; }
-  .brand__sub { margin-top: 6px; font-size: 8.5px; letter-spacing: 0.3em; padding-left: 0.3em; gap: 10px; color: var(--ink-3); }
-  .brand__sub::before, .brand__sub::after { content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.7; }
+  .brand__sub { margin-top: 14px; font-size: 8.5px; letter-spacing: 0.32em; padding-left: 0.32em; color: var(--ink-3); }
 
   .top-right { top: auto; bottom: calc(var(--dock-b) + 72px); right: 14px; }
   .chip { display: none; }

@@ -103,6 +103,18 @@ export function castCollider(origin: THREE.Vector3, dir: THREE.Vector3, far: num
   return hit ? hit.distance : Infinity
 }
 
+/**
+ * Distance along the ray to the first back face = where the ray leaves a solid it started in (the orbit target
+ * often sits inside the island), or Infinity.
+ */
+export function castExit(origin: THREE.Vector3, dir: THREE.Vector3, far: number) {
+  if (!collider) return Infinity
+  castRay.origin.copy(origin)
+  castRay.direction.copy(dir)
+  const hit = collider.bvh.raycastFirst(castRay, THREE.BackSide, 0, far)
+  return hit ? hit.distance : Infinity
+}
+
 const nearHit = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 }
 /** is a point closer than r to any solid surface (furniture, island, walls up to 2.4 m)? */
 export function nearCollider(p: THREE.Vector3, r: number) {

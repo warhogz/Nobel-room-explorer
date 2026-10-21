@@ -7,7 +7,7 @@ import { useLoad } from '../loading'
 import { useStore, type PresetId } from '../store'
 import { world } from './Kitchen'
 import { anchors } from './live'
-import { nearCollider, WALK_FOV } from './Walk'
+import { castCollider, castExit, nearCollider, WALK_FOV } from './Walk'
 import CameraControlsImpl from 'camera-controls'
 import { LITE } from '../lite'
 
@@ -155,7 +155,7 @@ export function CameraRig() {
   const beforeFocus = useRef<{ pos: THREE.Vector3; target: THREE.Vector3; nonce: number } | null>(null)
   const proj = useRef({ fov: 50, shiftPx: 0 })
   useEffect(() => {
-    if (useStore.getState().dev) Object.assign(window, { __cam: { exact, controls: ref, camera } })
+    if (useStore.getState().dev) Object.assign(window, { __cam: { exact, controls: ref, camera, castCollider, castExit, nearCollider } })
   }, [exact, camera])
   const goal = useRef({ fov: 50, shiftPx: 0 })
   const near = useRef(0.05)
@@ -174,7 +174,7 @@ export function CameraRig() {
     const p = exact['10']
     const pr = presetProjection(p, size.width, size.height)
     proj.current = { fov: pr.fov + 14, shiftPx: 0 }
-    c.smoothTime = 2.6
+    c.smoothTime = 1.45
     let done = false
     const finish = () => {
       if (done) return
@@ -187,9 +187,9 @@ export function CameraRig() {
         useStore.getState().freeLook()
         c.setLookAt(...LITE_HOME.position, ...LITE_HOME.target, true).then(finish)
       } else c.setLookAt(...p.position, ...p.target, true).then(finish)
-    }, 250)
+    }, 120)
     // the transition promise only resolves at full rest; reveal the UI once the move has visibly settled
-    const t2 = setTimeout(finish, 4100)
+    const t2 = setTimeout(finish, 2100)
     return () => {
       clearTimeout(t)
       clearTimeout(t2)
@@ -319,14 +319,24 @@ export function CameraRig() {
     const want = _dir.length()
     if (want < 1e-3) return
     _dir.divideScalar(want)
-    const clear = Math.max(0.3, clearDistance(target, _dir, want + ARM_PAD) - ARM_PAD)
-    let allowed = Math.min(want, clear)
-    // furniture: the camera may look past a chair or the island (orbit viewers do), but never sits inside one
-    for (let i = 0; i < 30 && allowed > 0.5 && nearCollider(_p.copy(target).addScaledVector(_dir, allowed), 0.2); i++) allowed -= 0.08
-    let a = arm.current ?? want
+    // (looked for beyond the wanted distance too: the camera may have to step back out of a piece of furniture)
+    const clear = Math.max(0.3, clearDistance(target, _dir, want + 2 + ARM_PAD) - ARM_PAD)
+    // furniture and the island: the camera may look past them (orbit viewers do), but never ends up inside one.
+    // The target often sits inside the island: zooming in stops at its skin. A camera that would sit inside a chair
+    // between target and eye moves just behind it.
+    const enter = castCollider(target, _dir, want + 2)
+    const exit = castExit(target, _dir, want + 2)
+    let out = 0
+    if (exit < enter) out = exit + 0.35
+    else if (enter < want && exit > want) out = Math.min(exit + 0.25, want + 1.5)
+    let allowed = Math.min(Math.max(want, out), clear)
+    for (let i = 0; i < 30 && allowed + 0.06 < clear && nearCollider(_p.copy(target).addScaledVector(_dir, allowed), 0.16); i++) allowed += 0.06
+    // the controls learn where the camera really is: the next pinch starts from there, not from inside the stone
+    if (allowed > want + 0.02) c.dollyTo(allowed, false)
+    let a = arm.current ?? allowed
     // in: quick but continuous (the near plane hides the wall meanwhile); out: gentle
-    a += (allowed - a) * (1 - Math.exp(-dt * (allowed < a ? 7 : 3)))
-    a = Math.min(a, want)
+    a += (allowed - a) * (1 - Math.exp(-dt * (allowed < a ? 7 : 5)))
+    a = Math.min(a, Math.max(want, out, allowed))
     arm.current = a
     armNear.current = Math.max(0.05, a - clear + 0.15)
     camera.position.copy(target).addScaledVector(_dir, a)
