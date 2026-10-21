@@ -165,6 +165,8 @@ interface PatchOpts {
   perforated?: THREE.Texture
   /** "island only" role: kept, the floor disc, or (default) the room that dissolves */
   iso?: 'keep' | 'floor' | 'room'
+  /** a shell with no inside (the island has no carcass): its inner faces show as a dark cavity, not the backdrop */
+  hollow?: boolean
 }
 
 /**
@@ -174,6 +176,7 @@ interface PatchOpts {
  *  - extras: onyx inner glow + SSS, floor planar reflection, perforated bronze holes
  */
 function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
+  if (o.hollow) mat.side = THREE.DoubleSide
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, roomUniforms, probeUniforms)
     sh.uniforms.nikSss = sssUniform
@@ -305,8 +308,14 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
         'outgoingLight += vec3( 1.0, 0.62, 0.3 ) * nikIsoEdge * ( 1.0 - smoothstep( 0.0, 0.05, nikIsoR - nikIsoD ) );\n#include <opaque_fragment>',
       )
     }
+    if (o.hollow) {
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        'if ( !gl_FrontFacing ) outgoingLight = vec3( 0.006, 0.0048, 0.0036 );\n#include <opaque_fragment>',
+      )
+    }
   }
-  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room'].join('-')
+  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ? 'h' : ''].join('-')
   mat.customProgramCacheKey = () => key
 }
 
@@ -332,6 +341,8 @@ const TWEAKS: Record<
     minColor: [number, number, number]
     /** base colour (linear) measured from the renders, for procedural Corona colour chains */
     color: [number, number, number]
+    /** drop the colour map (a mottled scan that reads as dirt on small curved seats) */
+    dropMap: boolean
     spec: number
   }>
 > = {
@@ -345,7 +356,7 @@ const TWEAKS: Record<
   // photo backdrops of the view outside the windows: a print, not a mirror
   'Material #-2147483574': { roughness: 1, env: 0 },
   // bar stools: caramel nubuck in the renders (the Corona colour chain is mostly lit warm), soft sheen only
-  'Material #2147455760': { tint: [1.0, 0.8, 0.62], roughness: 0.75, env: 0.45 },
+  'Material #2147455760': { dropMap: true, color: [0.4, 0.2, 0.09], roughness: 0.78, env: 0.4 },
   // brass: in Corona the spots light it directly (glossy highlights + light gradients). Real time has only the probe
   // reflections, so part of it takes the baked light (metalness < 1); colours measured against renders 10 / 12
   'Material #2147483647': { tint: [2.06, 2.3, 2.48], metalness: 0.45, env: 1.6 },
@@ -532,6 +543,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     if (!nik.metal && !mat.roughnessMap && mat.roughness < 0.02 && !COATS[nik.orig ?? '']) mat.roughness = 0.3
     if (tw?.roughness !== undefined) mat.roughness = tw.roughness
     if (tw?.env !== undefined) mat.envMapIntensity = tw.env
+    if (tw?.dropMap) mat.map = null
     if (tw?.color) mat.color.setRGB(...tw.color)
     if (tw?.tint) mat.color.multiply(new THREE.Color(...tw.tint))
     if (tw?.metalness !== undefined) mat.metalness = tw.metalness
@@ -610,7 +622,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         if (glow) m.userData.nikSrc = backlit(src, nik)
         const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
         black.needsUpdate = true
-        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso }, mixer.target.texture)
+        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso, hollow: isIsland }, mixer.target.texture)
       })
       return
     }

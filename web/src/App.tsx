@@ -280,7 +280,7 @@ function UI() {
       <div className={`top-right ${ready}`}>
         {!LITE && <IsolateButton />}
         {!LITE && <WalkButton />}
-        <LightSwitch />
+        {!LITE && <LightSwitch />}
       </div>
       <WalkHint />
       <Joystick />

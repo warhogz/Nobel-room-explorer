@@ -119,7 +119,8 @@ json.dump({"pol": fixtures}, open(os.path.join(OUT, "lights.json"), "w"), indent
 if LITE:
     import bmesh  # noqa: E402
 
-    KEEP = {"Island", "Table", "Faucets", "Plants", "Planters", "Floor_Kitchen"}
+    # Ground: the dark grout plane under the floor tiles (without it the joints show the backdrop)
+    KEEP = {"Island", "Table", "Faucets", "Plants", "Planters", "Floor_Kitchen", "Ground"}
     # island zone in Blender metres (island centre = origin): inside the kitchen walls, below the pendant height
     ZX, ZY, ZZ = (-1.9, 2.6), (-2.0, 2.0), 1.6
     for ob in list(sc.objects):

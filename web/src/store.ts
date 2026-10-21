@@ -98,7 +98,8 @@ export const useStore = create<State>((set) => ({
   compare: { on: false, opacity: 0.5 },
   dev: new URLSearchParams(location.search).has('dev'),
   lamps: Array(8).fill(true),
-  day: true,
+  // phones: the evening scene only (its baked light gets all the texture memory)
+  day: !LITE,
   toggleDay: () => set((s) => ({ day: !s.day })),
   mode: 'orbit',
   setMode: (m) =>

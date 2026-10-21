@@ -3,7 +3,7 @@
  "samples": 1536,
  "objects": {
   "Floor_Kitchen": {
-   "size": 1024,
+   "size": 2048,
    "groups": {
     "env": {
      "url": "assets-lite/lm/Floor_Kitchen_env.ktx2",
@@ -79,7 +79,7 @@
    }
   },
   "Island": {
-   "size": 1024,
+   "size": 2048,
    "groups": {
     "env": {
      "url": "assets-lite/lm/Island_env.ktx2",
@@ -183,23 +183,23 @@
   ]
  },
  "bytes": {
-  "assets-lite/scene/scene_0.bin": 20296544,
+  "assets-lite/scene/scene_0.bin": 20298252,
   "assets/chandelier.glb": 1084896,
   "assets-lite/lm/Floor_Kitchen_env.ktx2": 3264983,
-  "assets-lite/lm/Floor_Kitchen_kitchen.ktx2": 1301847,
-  "assets-lite/lm/Floor_Kitchen_ostrov.ktx2": 1246193,
-  "assets-lite/lm/Floor_Kitchen_pol_p0.ktx2": 131328,
-  "assets-lite/lm/Floor_Kitchen_pol_p1.ktx2": 141797,
+  "assets-lite/lm/Floor_Kitchen_kitchen.ktx2": 4093363,
+  "assets-lite/lm/Floor_Kitchen_ostrov.ktx2": 4220743,
+  "assets-lite/lm/Floor_Kitchen_pol_p0.ktx2": 686761,
+  "assets-lite/lm/Floor_Kitchen_pol_p1.ktx2": 648579,
   "assets-lite/lm/Table_env.ktx2": 1992136,
   "assets-lite/lm/Table_kitchen.ktx2": 1371939,
   "assets-lite/lm/Table_ostrov.ktx2": 2293800,
   "assets-lite/lm/Table_pol_p0.ktx2": 207719,
   "assets-lite/lm/Table_pol_p1.ktx2": 209428,
   "assets-lite/lm/Island_env.ktx2": 3563760,
-  "assets-lite/lm/Island_kitchen.ktx2": 3289375,
-  "assets-lite/lm/Island_ostrov.ktx2": 3613361,
-  "assets-lite/lm/Island_pol_p0.ktx2": 232337,
-  "assets-lite/lm/Island_pol_p1.ktx2": 208266,
+  "assets-lite/lm/Island_kitchen.ktx2": 11724526,
+  "assets-lite/lm/Island_ostrov.ktx2": 12985374,
+  "assets-lite/lm/Island_pol_p0.ktx2": 1296833,
+  "assets-lite/lm/Island_pol_p1.ktx2": 1275624,
   "assets-lite/lm/Planters_env.ktx2": 164612,
   "assets-lite/lm/Planters_kitchen.ktx2": 178281,
   "assets-lite/lm/Planters_ostrov.ktx2": 220863,

@@ -33,7 +33,10 @@ PUB = os.path.join(ROOT, "web", "public", PUB_NAME)
 LM_OUT = os.path.join(PUB, "lm")
 TEX_OUT = os.path.join(ROOT, "web", "public", "assets", "tex")
 TMP = os.path.join(B, "web_lite_tmp" if LITE else "web_room_tmp")
-LM_MAX = 1024 if LITE else 2048
+LM_MAX = 2048
+# phones show the evening only: its lightmaps keep their full resolution (downsized 2K -> 1K the charts bled into
+# each other: torn light, hot spots); the daylight group, barely visible at night, goes to 1K
+LITE_ENV = 1024
 for d in (PUB, LM_OUT, TEX_OUT, TMP):
     os.makedirs(d, exist_ok=True)
 RGBM_RANGE = 16.0
@@ -121,8 +124,9 @@ if "lm" in ONLY:
                 continue
             out = os.path.join(LM_OUT, "%s_%s.ktx2" % (obj, g))
             cmd = ["ktx", "create", "--format", "E5B9G9R9_UFLOAT_PACK32", "--zstd", "19"]
-            if hdr_size != size:
-                cmd += ["--width", str(hdr_size), "--height", str(hdr_size)]
+            gsize = min(hdr_size, LITE_ENV) if LITE and g == "env" else hdr_size
+            if gsize != size:
+                cmd += ["--width", str(gsize), "--height", str(gsize)]
             if mips:
                 cmd.append("--generate-mipmap")
             run(cmd + [os.path.join(BAKE, f["file"]), out])
