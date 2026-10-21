@@ -323,27 +323,95 @@ button { font: inherit; }
 .slider input { width: 100%; accent-color: var(--accent); }
 .slider em { font-style: normal; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
-/* ---------- small screens ---------- */
+/* ---------- touch-only pieces (hidden on desktop) ---------- */
+.scrim, .faucetbtn, .ghint, .finish__grab { display: none; }
+
+/* ---------- small screens: centred mark on top, one glass dock at the bottom ---------- */
 @media (max-width: 760px) {
-  .brand { top: 18px; left: 18px; }
-  .brand__title { font-size: 17px; }
-  .brand__logo { height: 48px; }
-  .brand__sub { font-size: 9px; letter-spacing: 0.2em; gap: 8px; margin-top: 2px; }
-  .brand__sub::before { width: 16px; }
-  .top-right { top: auto; bottom: 92px; right: 16px; }
+  .app { --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); --dock-b: max(14px, calc(var(--safe-b) + 6px)); }
+
+  /* soft shade behind the mark and the dock so they read over any part of the scene */
+  .scrim { display: block; position: absolute; left: 0; right: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease-out); }
+  .scrim.ui--on { opacity: 1; transform: none; filter: none; }
+  .scrim--top { top: 0; height: calc(150px + var(--safe-t)); background: linear-gradient(rgba(10, 8, 7, 0.82), rgba(10, 8, 7, 0.45) 45%, transparent); }
+  .scrim--bottom { bottom: 0; height: calc(170px + var(--safe-b)); background: linear-gradient(transparent, rgba(10, 8, 7, 0.5) 50%, rgba(10, 8, 7, 0.85)); }
+  .app--light .scrim--top { background: linear-gradient(rgba(247, 242, 235, 0.85), transparent); }
+  .app--light .scrim--bottom { background: linear-gradient(transparent, rgba(247, 242, 235, 0.85)); }
+
+  .brand { top: calc(var(--safe-t) + 18px); left: 0; right: 0; display: grid; justify-items: center; }
+  .brand__logo { height: 40px; margin-left: 0; }
+  .brand__sub { margin-top: 6px; font-size: 8.5px; letter-spacing: 0.3em; padding-left: 0.3em; gap: 10px; color: var(--ink-3); }
+  .brand__sub::before, .brand__sub::after { content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.7; }
+
+  .top-right { top: auto; bottom: calc(var(--dock-b) + 72px); right: 14px; }
   .chip { display: none; }
-  .views { left: 16px; right: 16px; top: auto; bottom: 16px; translate: none; padding: 6px; border-radius: 18px; }
+
+  /* the dock: three views of equal width, a sliding pill, room on the right for the finish button */
+  .views {
+    left: 14px; right: 14px; top: auto; bottom: var(--dock-b); translate: none; padding: 5px 58px 5px 5px; border-radius: 26px;
+    background: rgba(28, 23, 19, 0.62); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border: 1px solid rgba(244, 238, 231, 0.09); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  }
   .views__label, .views__free { display: none; }
-  .views__list { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
-  .views__pill { width: var(--w, 0px); height: calc(100% - 0px); transform: translateX(var(--x, 0px)); transition: transform 0.55s var(--ease-spring), width 0.55s var(--ease-out), opacity 0.4s, background-color 0.9s; }
-  .views button { padding: 10px 14px; font-size: 13px; }
+  .views__list { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; }
+  .views__pill {
+    width: var(--w, 0px); height: 100%; border-radius: 21px; background: rgba(244, 238, 231, 0.13);
+    box-shadow: inset 0 0 0 1px rgba(244, 238, 231, 0.08);
+    transform: translateX(var(--x, 0px));
+    transition: transform 0.55s var(--ease-spring), width 0.55s var(--ease-out), opacity 0.4s, background-color 0.9s;
+  }
+  .views button {
+    text-align: center; padding: 13px 4px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.01em; border-radius: 21px;
+    -webkit-tap-highlight-color: transparent; color: var(--ink-3);
+  }
+  .views button.active { color: var(--ink); }
   .views button:hover { transform: none; }
+  .views button:active { transform: scale(0.96); transition-duration: 0.12s; }
+
+  /* finish button: the current finish as a swatch, inside the dock's right end */
+  .faucetbtn {
+    display: grid; place-items: center; position: absolute; right: 19px; bottom: calc(var(--dock-b) + 5px); z-index: 6;
+    width: 44px; height: 44px; padding: 0; border-radius: 50%; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    background: rgba(244, 238, 231, 0.08); border: 1px solid rgba(244, 238, 231, 0.12);
+    opacity: 0; transform: scale(0.8); pointer-events: none;
+    transition: opacity 0.7s var(--ease-out) 0.35s, transform 0.7s var(--ease-spring) 0.35s;
+  }
+  .faucetbtn.ui--on { opacity: 1; transform: none; pointer-events: auto; }
+  .faucetbtn i { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 4px 12px rgba(0, 0, 0, 0.35); }
+  .faucetbtn:active { transform: scale(0.92); transition-duration: 0.12s; transition-delay: 0s; }
+
+  /* gestures, until the first touch */
+  .ghint {
+    display: flex; align-items: center; gap: 8px; position: absolute; left: 50%; bottom: calc(var(--dock-b) + 74px); z-index: 4;
+    translate: -50% 0; padding: 9px 15px 9px 12px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-2);
+    background: rgba(28, 23, 19, 0.5); border: 1px solid rgba(244, 238, 231, 0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    opacity: 0; transform: translateY(8px); transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+  }
+  .ghint--on { opacity: 1; transform: none; transition-delay: 1.2s; }
+  .ghint svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; animation: nudge 2.4s ease-in-out infinite; }
+  @keyframes nudge { 0%, 100% { transform: translateX(-3px) rotate(-6deg); } 50% { transform: translateX(3px) rotate(6deg); } }
+
+  /* the finish picker becomes a bottom sheet */
+  .finish {
+    left: 0; right: 0; bottom: 0; width: 100%; margin: 0; padding: 10px 18px calc(var(--safe-b) + 18px);
+    border-radius: 26px 26px 0 0; border-width: 1px 0 0; transform: translateY(100%); filter: none;
+    background: rgba(24, 20, 17, 0.86); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
+  }
+  .finish--on { transform: none; }
+  .finish__grab { display: block; width: 38px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: rgba(244, 238, 231, 0.2); }
+  .finish__title { font-size: 18px; }
+  .finish__list { gap: 8px; }
+  .swatch { padding: 14px 4px 12px; -webkit-tap-highlight-color: transparent; }
+  .swatch i { width: 42px; height: 42px; }
+  .swatch span { font-size: 12px; }
+
   .hint { display: none; }
   .app--walk .views { opacity: 0; pointer-events: none; }
   .walkhint { bottom: auto; top: 76px; font-size: 11px; gap: 10px; }
   .walkbtn { height: 42px; }
   .walkbtn span { display: none; }
-  .finish { bottom: 16px; }
   .peek { display: none; }
   .views__compare { margin-top: 6px; justify-content: center; }
+}
 }

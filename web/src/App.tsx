@@ -196,6 +196,46 @@ function Views() {
   )
 }
 
+/** touch screens: the faucet finish behind one tap (the taps themselves are a small target), shown as the current swatch */
+function FaucetButton() {
+  const { introDone, focus, finish, setFocus, mode } = useStore()
+  const sw = FINISHES.find((f) => f.id === finish)?.swatch
+  return (
+    <button
+      className={`faucetbtn ${introDone && !focus && mode === 'orbit' ? 'ui--on' : ''}`}
+      onClick={() => setFocus('faucet')}
+      aria-label="Faucet finish"
+    >
+      <i style={{ background: sw }} />
+    </button>
+  )
+}
+
+/** touch screens: how to move, until the first touch */
+function GestureHint() {
+  const introDone = useStore((s) => s.introDone)
+  const focus = useStore((s) => s.focus)
+  const [used, setUsed] = useState(false)
+  useEffect(() => {
+    if (!introDone || used) return
+    const done = () => setUsed(true)
+    const t = setTimeout(done, 9000)
+    window.addEventListener('pointerdown', done, { once: true })
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('pointerdown', done)
+    }
+  }, [introDone, used])
+  return (
+    <div className={`ghint ${introDone && !used && !focus ? 'ghint--on' : ''}`}>
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path d="M9 11V6.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0V15a5 5 0 0 1-5 5h-1.2a5 5 0 0 1-4.1-2.2L5.6 15a1.5 1.5 0 0 1 2.4-1.8L9 14.5" />
+      </svg>
+      Drag to turn · pinch to zoom
+    </div>
+  )
+}
+
 /** faucet close-up: finish picker */
 function FinishPicker() {
   const focus = useStore((s) => s.focus)
@@ -204,6 +244,7 @@ function FinishPicker() {
   const setFocus = useStore((s) => s.setFocus)
   return (
     <div className={`finish ${focus === 'faucet' ? 'finish--on' : ''}`}>
+      <span className="finish__grab" aria-hidden />
       <div className="finish__head">
         <div>
           <div className="finish__eyebrow">Faucet</div>
@@ -273,6 +314,8 @@ function UI() {
       <DevPanel />
       <CompareRender />
       <Tooltip />
+      <div className={`scrim scrim--top ${ready}`} aria-hidden />
+      <div className={`scrim scrim--bottom ${ready}`} aria-hidden />
       <header className={`brand ${ready}`}>
         <img className="brand__logo" src={LOGO} alt="Nobel" />
         <div className="brand__sub">{LITE ? 'Onyx island · table & stools' : 'Onyx island · Villa kitchen & hall'}</div>
@@ -285,6 +328,8 @@ function UI() {
       <WalkHint />
       <Joystick />
       <Views />
+      {TOUCH && <FaucetButton />}
+      {TOUCH && <GestureHint />}
       <FinishPicker />
       <footer className={`hint ${introDone && !focus && !compareOn && mode === 'orbit' ? 'ui--on' : ''}`}>
         <span><kbd>Drag</kbd> orbit</span>

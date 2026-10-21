@@ -343,7 +343,8 @@ export function CameraRig() {
     // portrait phones: the render frame fit gives a ~100 deg fisheye; capped, the island stays large and undistorted
     goal.current.fov = walking ? WALK_FOV : focused ? 34 : TOUCH ? Math.min(pr.fov, 72) : pr.fov
     // keep the architectural lens shift of the last preset while orbiting (no jump on the first drag)
-    goal.current.shiftPx = walking || focused ? 0 : pr.shiftPx
+    // (touch screens: no architectural lens shift - on a portrait phone it pushed the island to the bottom third)
+    goal.current.shiftPx = walking || focused || TOUCH ? 0 : pr.shiftPx
     const k = 1 - Math.exp(-dt * (introDone ? 4 : 1.6))
     proj.current.fov += (goal.current.fov - proj.current.fov) * k
     proj.current.shiftPx += (goal.current.shiftPx - proj.current.shiftPx) * k
