@@ -57,10 +57,15 @@ button { font: inherit; }
 /* ---------- brand ---------- */
 .brand { position: absolute; top: 28px; left: 32px; z-index: 5; pointer-events: none; }
 .brand__title { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
-.brand__logo { display: block; height: 34px; width: auto; transition: filter 0.9s; }
+.brand__logo { display: block; height: 64px; width: auto; margin-left: -3px; transition: filter 0.9s; }
 /* light (daylight) theme: the white logo in ink */
 .app--light .brand__logo { filter: invert(1) brightness(0.18); }
-.brand__sub { margin-top: 3px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+/* a quiet caption under the mark: hairline, small caps, wide tracking */
+.brand__sub {
+  display: flex; align-items: center; gap: 10px; margin-top: 4px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-2);
+}
+.brand__sub::before { content: ''; width: 22px; height: 1px; background: currentColor; opacity: 0.55; }
 
 /* ---------- top right: chip + lights switch ---------- */
 .top-right { position: absolute; top: 24px; right: 28px; z-index: 5; display: flex; align-items: center; gap: 10px; }
@@ -322,8 +327,9 @@ button { font: inherit; }
 @media (max-width: 760px) {
   .brand { top: 18px; left: 18px; }
   .brand__title { font-size: 17px; }
-  .brand__logo { height: 26px; }
-  .brand__sub { font-size: 12px; }
+  .brand__logo { height: 48px; }
+  .brand__sub { font-size: 9px; letter-spacing: 0.2em; gap: 8px; margin-top: 2px; }
+  .brand__sub::before { width: 16px; }
   .top-right { top: auto; bottom: 92px; right: 16px; }
   .chip { display: none; }
   .views { left: 16px; right: 16px; top: auto; bottom: 16px; translate: none; padding: 6px; border-radius: 18px; }

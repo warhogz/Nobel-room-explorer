@@ -170,6 +170,8 @@ interface PatchOpts {
    * at this fraction of their light - the stone wall in the shade behind a groove, not a hole into the backdrop
    */
   hollow?: number
+  /** overall light factor (the herb cups sunk in the worktop: dark wells, like the other openings) */
+  shade?: number
 }
 
 /**
@@ -311,6 +313,12 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
         'outgoingLight += vec3( 1.0, 0.62, 0.3 ) * nikIsoEdge * ( 1.0 - smoothstep( 0.0, 0.05, nikIsoR - nikIsoD ) );\n#include <opaque_fragment>',
       )
     }
+    if (o.shade !== undefined) {
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        `outgoingLight *= ${o.shade.toFixed(3)};\n#include <opaque_fragment>`,
+      )
+    }
     if (o.hollow !== undefined) {
       sh.fragmentShader = sh.fragmentShader.replace(
         '#include <opaque_fragment>',
@@ -318,7 +326,7 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
       )
     }
   }
-  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ?? ''].join('-')
+  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ?? '', o.shade ?? ''].join('-')
   mat.customProgramCacheKey = () => key
 }
 
@@ -635,7 +643,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
         if (glow) m.userData.nikSrc = backlit(src, nik)
         const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
         black.needsUpdate = true
-        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso, hollow: isIsland ? 0.32 : undefined }, mixer.target.texture)
+        prep(m, 'mixer', { ostrov: glow ? (ostrovMixer?.target.texture ?? black) : undefined, floor: isFloor, iso, hollow: isIsland ? 0.025 : undefined, shade: o.name === 'Planters' ? 0.12 : undefined }, mixer.target.texture)
       })
       return
     }
