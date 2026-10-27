@@ -1,3 +1,4 @@
+import { PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Bloom, EffectComposer, SMAA } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
@@ -15,7 +16,7 @@ import { STAGE_SPAN, useLoad } from './loading'
 const LOGO = `${import.meta.env.BASE_URL}logo.svg`
 import { IsolateButton, Joystick, WalkButton, WalkHint } from './ui/WalkUI'
 import { FINISHES, GROUP_LABELS, PRESETS, useStore, type PresetId } from './store'
-import { LITE } from './lite'
+import { LITE, MOBILE } from './lite'
 
 const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 import { CompareRender, RenderPeek } from './ui/Compare'
@@ -153,6 +154,8 @@ function Views() {
     const update = () => {
       const btn = list.current?.querySelector<HTMLButtonElement>('button.active')
       setPill(btn ? { y: btn.offsetTop, h: btn.offsetHeight, x: btn.offsetLeft, w: btn.offsetWidth } : null)
+      const el = list.current
+      if (TOUCH && btn && el) el.scrollTo({ left: btn.offsetLeft - (el.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth' })  // not scrollIntoView: it shifts the page
     }
     update()
     window.addEventListener('resize', update)
@@ -345,18 +348,28 @@ export default function App() {
   const bright = useStore((s) => s.day)
   const walking = useStore((s) => s.mode === 'walk')
   const loaded = useLoad((s) => s.stage === 'ready')
+  // resolution follows the frame rate: a slow phone renders fewer pixels instead of stuttering
+  const dprMax = LITE || MOBILE ? 1.5 : 2
+  const [dprCap, setDprCap] = useState(dprMax)
   return (
     <div className={`app ${bright ? 'app--light' : ''} ${walking ? 'app--walk' : ''} ${loaded ? 'app--ready' : ''}`}>
       <Canvas
-        dpr={LITE ? [1, 1.5] : [1, 2]}
+        dpr={[0.65, dprCap]}
         gl={{ antialias: false, alpha: true, toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: 'high-performance' }}
         camera={{ fov: 50, near: 0.02, far: 100, position: [-6.5, 3.6, 6.8] }}
         onCreated={({ gl, scene }) => {
           // transparent clear: the background is composited in the post effect from scene coverage (alpha)
           scene.background = null
+          ;(window as unknown as { __gl: THREE.WebGLRenderer }).__gl = gl  // dev probe: __gl.info
           gl.setClearColor(0x000000, 0)
         }}
       >
+        <PerformanceMonitor
+          bounds={() => [30, 52]}
+          flipflops={4}
+          onDecline={() => setDprCap((c) => Math.max(0.65, c - 0.25))}
+          onIncline={() => setDprCap((c) => Math.min(dprMax, c + 0.25))}
+        />
         <Suspense fallback={null}>
           <Kitchen />
           <FloorLamps />

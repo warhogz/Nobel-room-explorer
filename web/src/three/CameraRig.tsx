@@ -351,7 +351,8 @@ export function CameraRig() {
     const pr = presetProjection(p, size.width, size.height)
     const focused = st.focus === 'faucet'
     // portrait phones: the render frame fit gives a ~100 deg fisheye; capped, the island stays large and undistorted
-    goal.current.fov = walking ? WALK_FOV : focused ? 34 : TOUCH ? Math.min(pr.fov, 72) : pr.fov
+    const portrait = size.width < size.height
+    goal.current.fov = walking ? (portrait ? 80 : WALK_FOV) : focused ? 34 : TOUCH ? Math.min(pr.fov, LITE ? 72 : 88) : pr.fov
     // keep the architectural lens shift of the last preset while orbiting (no jump on the first drag)
     // (touch screens: no architectural lens shift - on a portrait phone it pushed the island to the bottom third)
     goal.current.shiftPx = walking || focused || TOUCH ? 0 : pr.shiftPx

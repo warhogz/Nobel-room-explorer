@@ -1,0 +1,358 @@
+{
+ "rgbmRange": 16.0,
+ "samples": 1536,
+ "objects": {
+  "Floor_Kitchen": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/Floor_Kitchen_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.010873619590047746,
+     "p99": 21.789856463623046,
+     "log": [
+      0.0020903581753373146,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/Floor_Kitchen_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0,
+     "p99": 0.40921803028583525,
+     "log": [
+      3.3375381462974474e-05,
+      14.000088052430122
+     ]
+    },
+    "ostrov": {
+     "url": "assets-mobile/lm/Floor_Kitchen_ostrov.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0,
+     "p99": 0.04292746836096048,
+     "log": [
+      6.085761469876161e-05,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false,
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.00014126212045084685,
+     "encoding": "sqrt",
+     "urls": [
+      "assets-mobile/lm/Floor_Kitchen_pol_p0.ktx2",
+      "assets-mobile/lm/Floor_Kitchen_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "LM_Atlas_01": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/LM_Atlas_01_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.007718483192846178,
+     "p99": 33.79296454162598,
+     "log": [
+      0.002956296957563609,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/LM_Atlas_01_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0003596501190215349,
+     "p99": 0.4418031891405582,
+     "log": [
+      0.0004182938937447034,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false
+  },
+  "Table": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/Table_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.007161204047407955,
+     "p99": 0.08668686150312423,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/Table_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.016249969946220515,
+     "p99": 0.33107011522054675,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    },
+    "ostrov": {
+     "url": "assets-mobile/lm/Table_ostrov.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0001069748560898006,
+     "p99": 0.07665745255947112,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false,
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.0024355861824005842,
+     "encoding": "sqrt",
+     "urls": [
+      "assets-mobile/lm/Table_pol_p0.ktx2",
+      "assets-mobile/lm/Table_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "Island": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/Island_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.002426521356217563,
+     "p99": 0.052869709854992106,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/Island_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.010552150001190601,
+     "p99": 0.23521787337921557,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    },
+    "ostrov": {
+     "url": "assets-mobile/lm/Island_ostrov.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.39103800568580627,
+     "p99": 5.914515123301744,
+     "log": [
+      0.0029453556635417044,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false,
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 0.006544781383126974,
+     "encoding": "sqrt",
+     "urls": [
+      "assets-mobile/lm/Island_pol_p0.ktx2",
+      "assets-mobile/lm/Island_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "LM_Atlas_00": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/LM_Atlas_00_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.02176035586688668,
+     "p99": 26.52395084671527,
+     "log": [
+      0.002817302301991731,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/LM_Atlas_00_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 4.774482856712438e-05,
+     "p99": 0.24618749413872135,
+     "log": [
+      0.00015410949345096014,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false
+  },
+  "Planters": {
+   "size": 256,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/Planters_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0,
+     "p99": 0.01853509770520031,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/Planters_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0015133744573453442,
+     "p99": 0.2425732786655426,
+     "log": [
+      3.0517578125e-05,
+      14.000088052430122
+     ]
+    },
+    "ostrov": {
+     "url": "assets-mobile/lm/Planters_ostrov.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.0004849513543595094,
+     "p99": 2.87183154168129,
+     "log": [
+      0.00027481997676659375,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false,
+   "perLight": {
+    "pol": {
+     "count": 8,
+     "scale": 1.9535360479494557e-05,
+     "encoding": "sqrt",
+     "urls": [
+      "assets-mobile/lm/Planters_pol_p0.ktx2",
+      "assets-mobile/lm/Planters_pol_p1.ktx2"
+     ]
+    }
+   }
+  },
+  "Floor_Hall": {
+   "size": 1024,
+   "groups": {
+    "env": {
+     "url": "assets-mobile/lm/Floor_Hall_env.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 0.007906616409122944,
+     "p99": 21.389487282180788,
+     "log": [
+      0.002158145362045616,
+      14.000088052430122
+     ]
+    },
+    "kitchen": {
+     "url": "assets-mobile/lm/Floor_Hall_kitchen.ktx2",
+     "scale": 1.0,
+     "encoding": "log",
+     "p50": 4.77678610568546e-05,
+     "p99": 0.4145378787457943,
+     "log": [
+      6.598090294573922e-05,
+      14.000088052430122
+     ]
+    }
+   },
+   "mipmaps": false
+  }
+ },
+ "vertex": {
+  "range": 16.0,
+  "scales": {
+   "kitchen": 0.1125349439408752,
+   "env": 0.6344777510195685
+  },
+  "objects": [
+   "VX_02",
+   "VX_01",
+   "VX_04",
+   "VX_05",
+   "VX_08",
+   "VX_07",
+   "VX_03",
+   "VX_00",
+   "VX_06",
+   "VX_09"
+  ]
+ },
+ "textures": {
+  "Material #-2147483589": "assets-mobile/tex/Material___2147483589_M5735_transl_3d1c65ac.ktx2",
+  "Material #2147483633": "assets-mobile/tex/Material__2147483633_M15199_transl_523d8591.ktx2",
+  "Material #-2147483421": "assets-mobile/tex/Material___2147483421_M19921_transl_3d1c65ac.ktx2",
+  "perf_mask": "assets-mobile/tex/perf_mask.ktx2"
+ },
+ "parts": {
+  "assets-mobile/scene.glb": [
+   "assets-mobile/scene/scene_0.bin",
+   "assets-mobile/scene/scene_1.bin",
+   "assets-mobile/scene/scene_2.bin"
+  ]
+ },
+ "bytes": {
+  "assets-mobile/scene/scene_0.bin": 20971520,
+  "assets-mobile/scene/scene_1.bin": 20971520,
+  "assets-mobile/scene/scene_2.bin": 425440,
+  "assets/chandelier.glb": 1084896,
+  "assets-mobile/lm/Floor_Kitchen_env.ktx2": 720563,
+  "assets-mobile/lm/Floor_Kitchen_kitchen.ktx2": 344743,
+  "assets-mobile/lm/Floor_Kitchen_ostrov.ktx2": 281820,
+  "assets-mobile/lm/Floor_Kitchen_pol_p0.ktx2": 131328,
+  "assets-mobile/lm/Floor_Kitchen_pol_p1.ktx2": 141797,
+  "assets-mobile/lm/LM_Atlas_01_env.ktx2": 573191,
+  "assets-mobile/lm/LM_Atlas_01_kitchen.ktx2": 499421,
+  "assets-mobile/lm/Table_env.ktx2": 517476,
+  "assets-mobile/lm/Table_kitchen.ktx2": 506009,
+  "assets-mobile/lm/Table_ostrov.ktx2": 560726,
+  "assets-mobile/lm/Table_pol_p0.ktx2": 207719,
+  "assets-mobile/lm/Table_pol_p1.ktx2": 209428,
+  "assets-mobile/lm/Island_env.ktx2": 857576,
+  "assets-mobile/lm/Island_kitchen.ktx2": 910412,
+  "assets-mobile/lm/Island_ostrov.ktx2": 847707,
+  "assets-mobile/lm/Island_pol_p0.ktx2": 232337,
+  "assets-mobile/lm/Island_pol_p1.ktx2": 208266,
+  "assets-mobile/lm/LM_Atlas_00_env.ktx2": 585720,
+  "assets-mobile/lm/LM_Atlas_00_kitchen.ktx2": 452148,
+  "assets-mobile/lm/Planters_env.ktx2": 40592,
+  "assets-mobile/lm/Planters_kitchen.ktx2": 48648,
+  "assets-mobile/lm/Planters_ostrov.ktx2": 52628,
+  "assets-mobile/lm/Planters_pol_p0.ktx2": 33808,
+  "assets-mobile/lm/Planters_pol_p1.ktx2": 36404,
+  "assets-mobile/lm/Floor_Hall_env.ktx2": 667447,
+  "assets-mobile/lm/Floor_Hall_kitchen.ktx2": 488433,
+  "assets-mobile/tex/Material___2147483589_M5735_transl_3d1c65ac.ktx2": 890903,
+  "assets-mobile/tex/Material__2147483633_M15199_transl_523d8591.ktx2": 748338,
+  "assets-mobile/tex/Material___2147483421_M19921_transl_3d1c65ac.ktx2": 886816,
+  "assets-mobile/tex/perf_mask.ktx2": 1997
+ }
+}

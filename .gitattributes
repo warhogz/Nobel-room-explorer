@@ -8,3 +8,6 @@ web/public/assets/**/*.bin binary
 web/public/assets/**/*.hdr binary
 web/public/assets-lite/**/*.ktx2 binary
 web/public/assets-lite/**/*.bin binary
+web/public/assets-mobile/**/*.ktx2 binary
+web/public/assets-mobile/**/*.bin binary
+web/public/assets-mobile/**/*.glb binary

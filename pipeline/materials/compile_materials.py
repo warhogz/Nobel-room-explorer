@@ -47,6 +47,10 @@ MAX_GAMMA = 2.2
 HERO_SIZE, DEFAULT_SIZE, SMALL_SIZE = 4096, 2048, 1024
 if ROOM:
     DEFAULT_SIZE = int(os.environ.get("NIK_SIZE", "1024"))
+# Unreal (virtual textures): every map at its source resolution, only rounded to the nearest power of two
+UE = os.environ.get("NIK_UE") == "1"
+if UE:
+    HERO_SIZE = DEFAULT_SIZE = SMALL_SIZE = 16384
 warnings = []
 
 
@@ -264,7 +268,8 @@ def load_lin(fname, size_limit):
     if (pot(w), pot(h)) != (w, h):
         im = im.resize((pot(w), pot(h)), Image.LANCZOS)
     a = np.asarray(im, np.float32) / 255.0
-    _cache[key] = a
+    if a.shape[0] * a.shape[1] <= 2048 * 2048:  # 8K+ float images would fill the RAM
+        _cache[key] = a
     return a
 
 

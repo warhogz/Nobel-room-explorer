@@ -11,6 +11,8 @@ export function setupChandelier(
   ceilings: THREE.Object3D[],
   /** room probe lookup (box-projected, kitchen or hall probe by position): without it the hall pieces mirror the kitchen */
   useProbes: (m: THREE.MeshStandardMaterial) => void,
+  /** phones: no transmission pass (a second render of the whole room): the glass is a clear tinted shell that mirrors the probes */
+  cheap = false,
 ) {
   gl.transmissionResolutionScale = 0.5
   let rods: THREE.Mesh | null = null
@@ -24,7 +26,18 @@ export function setupChandelier(
       return
     }
     let mat: THREE.MeshStandardMaterial
-    if (nik.glass || (src as THREE.MeshPhysicalMaterial).transmission > 0) {
+    if (cheap && (nik.glass || (src as THREE.MeshPhysicalMaterial).transmission > 0)) {
+      mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(1, 0.96, 0.9),
+        metalness: 0.1,
+        roughness: 0.04,
+        transparent: true,
+        opacity: 0.32,
+        depthWrite: false,
+        envMapIntensity: 2.4,
+        side: THREE.FrontSide,
+      })
+    } else if (nik.glass || (src as THREE.MeshPhysicalMaterial).transmission > 0) {
       mat = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(1, 0.99, 0.97),
         metalness: 0,

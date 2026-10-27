@@ -1,13 +1,14 @@
 /**
  * Which scene this visit gets.
- *   full : the whole kitchen + hall (~310 MB, ~4 M triangles) - desktops
- *   lite : the island, the table and the stools around it on the kitchen floor in a studio space (~46 MB) - phones and
- *          tablets, whose browsers kill a tab that big and reload it (the endless loading loop)
- * ?full / ?lite force a version. A full load that never finished in this tab (the browser killed and reloaded it)
- * falls back to the lite scene instead of trying again.
+ *   full   : the whole kitchen + hall (~150 MB, ~2 M triangles) - desktops
+ *   mobile : the same room, lighter (a fifth of the triangles, 1K textures, 8 bit lightmaps) - phones and tablets
+ *   lite   : the island, the table and the stools around it on the kitchen floor in a studio space (~46 MB) - phones
+ *            with little memory, or after the browser killed a bigger load (the endless loading loop)
+ * ?full / ?mobile / ?lite force a version. A load that never finished in this tab falls back one step
+ * (full -> mobile -> lite) instead of trying again.
  */
 const params = new URLSearchParams(location.search)
-const GUARD = 'nik-full-loading'
+const GUARD = { full: 'nik-full-loading', mobile: 'nik-mobile-loading' }
 
 function storage(): Storage | null {
   try {
@@ -17,26 +18,36 @@ function storage(): Storage | null {
   }
 }
 
-function decide(): boolean {
-  if (params.has('lite')) return true
-  if (params.has('full')) return false
-  if (storage()?.getItem(GUARD)) return true // the last full load in this tab crashed
+export type Tier = 'full' | 'mobile' | 'lite'
+
+function decide(): Tier {
+  if (params.has('lite')) return 'lite'
+  if (params.has('mobile')) return 'mobile'
+  if (params.has('full')) return 'full'
+  const s = storage()
+  if (s?.getItem(GUARD.mobile)) return 'lite' // the last mobile load in this tab crashed
   const coarse = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
-  return coarse || (mem !== undefined && mem < 4)
+  if (mem !== undefined && mem <= 2) return 'lite'
+  if (s?.getItem(GUARD.full)) return 'mobile' // the last full load in this tab crashed
+  return coarse || (mem !== undefined && mem < 4) ? 'mobile' : 'full'
 }
 
-export const LITE = decide()
+export const TIER = decide()
+/** the island, table and stools in a studio space (phones with little memory, or after a crash) */
+export const LITE = TIER === 'lite'
+/** the whole room, lighter: a fifth of the triangles, 1K textures, 8 bit lightmaps (phones, tablets) */
+export const MOBILE = TIER === 'mobile'
 /** asset folder of this version (under the site base) */
-export const ASSETS = LITE ? 'assets-lite/' : 'assets/'
+export const ASSETS = LITE ? 'assets-lite/' : MOBILE ? 'assets-mobile/' : 'assets/'
 
 /** call before the heavy downloads start / once the scene is on screen */
 export function guardFullLoad(on: boolean) {
   if (LITE) return
   const s = storage()
   try {
-    if (on) s?.setItem(GUARD, '1')
-    else s?.removeItem(GUARD)
+    if (on) s?.setItem(GUARD[TIER as 'full' | 'mobile'], '1')
+    else s?.removeItem(GUARD[TIER as 'full' | 'mobile'])
   } catch {
     /* private mode: no guard */
   }

@@ -14,6 +14,10 @@ Scene organisation (object custom props drive bake_room.py / export):
   Floor_Kitchen / Floor_Hall                      : travertine floor split at the kitchen opening
 Lights: Corona lights converted to Cycles (radiance units, IES), pre-multiplied by their Corona LightMix layer and
 sorted into the web LightMix groups LM_kitchen / LM_env (suns + sky) / LM_pol (8 floor uplights) / LM_ostrov.
+
+NIK_UE=1: the Unreal scene (pipeline/unreal) - full Max geometry for Nanite (no decimation; the perforated panels are
+the real holes by default, NIK_UE_FLAT_PANELS=1 = flat + a hole mask like the web scene), every object kept apart (no atlases / chunks / lightmap UVs), materials from build/materials_ue
+(source-resolution textures) -> build/blender_ue/room_ue.blend
 """
 import json
 import math
@@ -33,12 +37,14 @@ from nikmat import build_material, nik_flags  # noqa: E402
 
 ROOT = sys.argv[sys.argv.index("--") + 1]
 B = os.path.join(ROOT, "build")
-OUT = os.path.join(B, "blender_room")
+UE = os.environ.get("NIK_UE") == "1"
+OUT = os.path.join(B, "blender_ue" if UE else "blender_room")
 TEXOUT = os.path.join(OUT, "tex")
 os.makedirs(TEXOUT, exist_ok=True)
 MANIFEST = json.load(open(os.path.join(B, "export_room", "room_manifest.json"), encoding="utf-8"))
-MATS = json.load(open(os.path.join(B, "materials_room", "materials.json"), encoding="utf-8"))["materials"]
-TEX = os.path.join(B, "materials_room", "tex")
+MATDIR = os.path.join(B, "materials_ue" if UE else "materials_room")
+MATS = json.load(open(os.path.join(MATDIR, "materials.json"), encoding="utf-8"))["materials"]
+TEX = os.path.join(MATDIR, "tex")
 ORIGIN = Vector(json.load(open(os.path.join(B, "blender", "origin.json")))["origin_m"])
 BOX = MANIFEST["box"]  # x0, x1, y0, y1 (metres, relative to the origin)
 FT = 0.3048
@@ -479,6 +485,8 @@ def min_rect_angle(h):
 
 PERF_MAT = "Material #2147483647"
 perf = [o for o in meshes if o.name not in HERO_NAMES and mats_of(o) == {PERF_MAT}]
+if UE and os.environ.get("NIK_UE_FLAT_PANELS") != "1":
+    perf = []  # Unreal keeps the real perforated geometry (2.8 M triangles); NIK_UE_FLAT_PANELS=1 = flat panels + mask
 perf_info = None
 if perf:
     # measure the hole pattern on the biggest panel by ray casting through it
@@ -621,7 +629,7 @@ CAP_SEAT = 40000
 SEAT = re.compile(r"^(sitting|chair|stool|seat)", re.I)
 dec = 0
 for o in scene.objects:
-    if o.type != "MESH" or o.name in HERO_NAMES or o.name.startswith(("Floor", "Ground")):
+    if UE or o.type != "MESH" or o.name in HERO_NAMES or o.name.startswith(("Floor", "Ground")):
         continue
     f = len(o.data.polygons)
     cap = CAP_SEAT if SEAT.match(o.name) else CAP
@@ -662,7 +670,7 @@ log({k: len(v) for k, v in by_kind.items()})
 TEXEL = 56.0  # lightmap texels per metre in the room atlases
 ATLAS = 4096
 CAP_AREA = ATLAS * ATLAS * 0.5 / TEXEL ** 2
-lm = sorted(by_kind["lightmap"], key=lambda o: tuple(sum(world_bounds(o))[:2] / 2))
+lm = sorted(by_kind["lightmap"], key=lambda o: tuple(sum(world_bounds(o))[:2] / 2)) if not UE else []
 chunks, cur, acc = [], [], 0.0
 for o in lm:
     ar = area_of(o)
@@ -702,9 +710,14 @@ def chunked(objs, prefix, max_faces, tag):
     return made
 
 
-vx = chunked(by_kind["vertex"], "VX", 350000, "vertex")
-st = chunked(by_kind["none"], "Static", 200000, "none")
-log("vertex chunks", len(vx), "static chunks", len(st))
+if UE:
+    for k, objs in by_kind.items():
+        for o in objs:
+            o["nik_bake"] = k
+else:
+    vx = chunked(by_kind["vertex"], "VX", 350000, "vertex")
+    st = chunked(by_kind["none"], "Static", 200000, "none")
+    log("vertex chunks", len(vx), "static chunks", len(st))
 LIGHTMAPPED = {"Island": 2048, "Table": 1024, "Planters": 256, "Floor_Kitchen": 2048, "Floor_Hall": 4096}
 for name, size in LIGHTMAPPED.items():
     if name in bpy.data.objects:
@@ -734,11 +747,14 @@ def doubled_faces(gap=0.002):
         lo, hi = world_bounds(o)
         trees.append((o, BVHTree.FromObject(o, dg), Vector(lo) - Vector((gap,) * 3), Vector(hi) + Vector((gap,) * 3)))
     mat_name = {o.name: [m.name if m else "" for m in o.data.materials] for o in objs}
+    # trees whose box overlaps the object's (hundreds of separate objects in the Unreal scene)
+    near = {o.name: [t for t in trees if all(t[2][i] <= hi[i] and lo[i] <= t[3][i] for i in range(3))]
+            for o, _, lo, hi in trees}
 
     def covers(o, p, s, n, mname):
         """covering faces at world point s: (obj name, face index, 'same'|'pressed')"""
         out = []
-        for o2, tree, lo, hi in trees:
+        for o2, tree, lo, hi in near[o.name]:
             if not (lo.x <= s.x <= hi.x and lo.y <= s.y <= hi.y and lo.z <= s.z <= hi.z):
                 continue
             for hl, hn, hi_, _ in tree.find_nearest_range(s - o2.location, gap):
@@ -759,7 +775,8 @@ def doubled_faces(gap=0.002):
 
     cands = []  # (obj, face, [covers per sample point], pressed ok)
     for o in objs:
-        if o.name.startswith("Floor"):
+        # Unreal: dense purchased models keep all faces (no bake; their few hidden copies cost nothing in Nanite)
+        if o.name.startswith("Floor") or (UE and len(o.data.polygons) > 50000):
             continue
         me = o.data
         names = mat_name[o.name]
@@ -813,7 +830,8 @@ def doubled_faces(gap=0.002):
         kinds = []
         for cv in per:
             k = next((k for on, i, k in cv if k == "same" and (on, i) not in deleted), None)
-            if k is None and pressed_ok and any(k2 == "pressed" for _, _, k2 in cv):
+            # Unreal bakes nothing: only the coplanar copies (z-fighting) go, pressed faces stay
+            if k is None and pressed_ok and not UE and any(k2 == "pressed" for _, _, k2 in cv):
                 k = "pressed"
             if k is None:
                 break
@@ -838,7 +856,7 @@ def doubled_faces(gap=0.002):
 doubled_faces()
 
 # ------------------------------------------------------------------ lightmap UVs
-for o in [o for o in scene.objects if o.type == "MESH" and o.get("nik_bake") == "lightmap"]:
+for o in [o for o in scene.objects if o.type == "MESH" and o.get("nik_bake") == "lightmap" and not UE]:
     size = int(o["nik_lightmap"])
     t = time.time()
     lmuv = o.data.uv_layers.new(name="Lightmap")
@@ -1098,5 +1116,6 @@ report["faces"] = sum(len(o.data.polygons) for o in scene.objects if o.type == "
 report["objects"] = {o.name: {"bake": o.get("nik_bake"), "faces": len(o.data.polygons), "lightmap": o.get("nik_lightmap")}
                      for o in scene.objects if o.type == "MESH"}
 json.dump(report, open(os.path.join(OUT, "room_report.json"), "w"), indent=1)
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "room.blend"))
-log("saved", os.path.join(OUT, "room.blend"), "faces", report["faces"])
+blend = os.path.join(OUT, "room_ue.blend" if UE else "room.blend")
+bpy.ops.wm.save_as_mainfile(filepath=blend)
+log("saved", blend, "faces", report["faces"])

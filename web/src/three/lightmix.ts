@@ -18,7 +18,7 @@ export interface LightmapManifest {
       size: number
       /** KTX2 carries a mip chain (room atlases): sampled with trilinear filtering */
       mipmaps?: boolean
-      groups: Partial<Record<GroupId, { url: string; scale: number }>>
+      groups: Partial<Record<GroupId, { url: string; scale: number; log?: [number, number] }>>
       perLight?: Partial<Record<GroupId, PerLightInfo>>
     }
   >
@@ -52,15 +52,16 @@ precision highp float;
 uniform sampler2D t0; uniform sampler2D t1; uniform sampler2D t2;
 uniform vec3 w0; uniform vec3 w1; uniform vec3 w2;
 uniform float s0; uniform float s1; uniform float s2;
+uniform vec2 e0; uniform vec2 e1; uniform vec2 e2;
 uniform float range;
 // per-light group: up to 8 lights packed 4 per texture (sqrt-encoded luminance, shared scale)
 uniform sampler2D p0; uniform sampler2D p1;
 uniform vec4 pw0; uniform vec4 pw1;
 uniform vec3 pColor; uniform float pScale;
 varying vec2 vUv;
-vec3 dec(vec4 c, float s) { return c.rgb * c.a * range / s; }
+vec3 dec(vec4 c, float s, vec2 e) { return e.x > 0.0 ? e.x * (exp2(c.rgb * e.y) - 1.0) : c.rgb * c.a * range / s; }
 void main() {
-  vec3 c = dec(texture2D(t0, vUv), s0) * w0 + dec(texture2D(t1, vUv), s1) * w1 + dec(texture2D(t2, vUv), s2) * w2;
+  vec3 c = dec(texture2D(t0, vUv), s0, e0) * w0 + dec(texture2D(t1, vUv), s1, e1) * w1 + dec(texture2D(t2, vUv), s2, e2) * w2;
   vec4 a = texture2D(p0, vUv); vec4 b = texture2D(p1, vUv);
   c += (dot(a * a, pw0) + dot(b * b, pw1)) * pScale * pColor;
   gl_FragColor = vec4(c, 1.0);
@@ -74,6 +75,8 @@ export interface MixerSource {
   group: GroupId
   tex: THREE.Texture
   scale: number
+  /** 8 bit log encoding (phones): c = c0 * (exp2(v * k) - 1), [c0, k] */
+  log?: [number, number]
 }
 export interface MixerPerLight {
   group: GroupId
@@ -121,6 +124,7 @@ export class LightmapMixer {
       const s = sources[i]
       u['t' + i] = { value: s ? s.tex : black }
       u['s' + i] = { value: s ? s.scale : 1 }
+      u['e' + i] = { value: new THREE.Vector2(s?.log?.[0] ?? 0, s?.log?.[1] ?? 0) }
       u['w' + i] = { value: new THREE.Vector3() }
     }
     this.mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: u, depthTest: false, depthWrite: false })

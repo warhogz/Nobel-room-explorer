@@ -26,24 +26,31 @@ B = os.path.join(ROOT, "build")
 # NIK_LITE=1: the phone scene (export_room_glb.py --lite -> build/web_lite) into web/public/assets-lite, lightmaps and
 # textures at 1K (the onyx at 2K); the translucency maps / perforation mask are shared with the full set
 LITE = os.environ.get("NIK_LITE") == "1"
-PUB_NAME = "assets-lite" if LITE else "assets"
+# NIK_MOBILE=1: the whole room for phones (web/public/assets-mobile): ~1/5 of the triangles, ETC1S 1K textures, lightmaps
+# as 8 bit log-encoded UASTC (any GPU: no HDR texture formats on phones; a half float fallback is 8 bytes a texel)
+MOBILE = os.environ.get("NIK_MOBILE") == "1"
+PUB_NAME = "assets-lite" if LITE else "assets-mobile" if MOBILE else "assets"
 SRC = os.path.join(B, "web_lite" if LITE else "web_room")
 BAKE = os.path.join(B, "bake_room")
 PUB = os.path.join(ROOT, "web", "public", PUB_NAME)
 LM_OUT = os.path.join(PUB, "lm")
-TEX_OUT = os.path.join(ROOT, "web", "public", "assets", "tex")
-TMP = os.path.join(B, "web_lite_tmp" if LITE else "web_room_tmp")
-LM_MAX = 2048
+TEX_OUT = os.path.join(PUB, "tex") if MOBILE else os.path.join(ROOT, "web", "public", "assets", "tex")
+TMP = os.path.join(B, "web_lite_tmp" if LITE else "web_mobile_tmp" if MOBILE else "web_room_tmp")
+LM_MAX = 1024 if MOBILE else 2048
+MOBILE_BIG = set()  # (mixer render targets are half float: 2K would cost 43 MB each on a phone)
 # phones show the evening only: its lightmaps keep their full resolution (downsized 2K -> 1K the charts bled into
 # each other: torn light, hot spots); the daylight group, barely visible at night, goes to 1K
 LITE_ENV = 1024
 for d in (PUB, LM_OUT, TEX_OUT, TMP):
     os.makedirs(d, exist_ok=True)
 RGBM_RANGE = 16.0
-PART = 45 * 2 ** 20  # scene.glb pieces, under GitHub's 50 MB warning
+HQ_MATERIALS = {"M4922", "M5796"}  # travertine floor, white marble
+PART = 20 * 2 ** 20  # scene.glb pieces: under GitHub's 50 MB warning and Cloudflare Pages' 25 MB per file
 ENV = dict(os.environ)
 ENV["PATH"] = ";".join([r"C:\Program Files\nodejs", os.path.join(os.environ["APPDATA"], "npm"),
                         r"C:\Program Files\KTX-Software\bin", ENV.get("PATH", "")])
+if MOBILE:
+    ENV["NIK_SIMP_FLAGS"] = "Permissive"  # phones: let the simplifier collapse across borders / seams (~22 % of the triangles left)
 ONLY = set(sys.argv[2].split(",")) if len(sys.argv) > 2 else {"lm", "glb", "tex"}  # "sizes" alone: only the byte table
 
 
@@ -81,12 +88,69 @@ def ktx(png, out, mips):
     run(cmd + [png, out])
 
 
+def encode_hdr(job):
+    """EXR -> box-filtered to size -> fp16 EXR -> UASTC HDR 4x4 KTX2 (BC6H on desktop, ASTC HDR where it exists), via the
+    WASI build of basisu (build/tools/basisu); mips for the big atlases"""
+    src, out, size, mips, name = job
+    a = load_exr(src)
+    f = a.shape[0] // size
+    if f > 1:
+        a = a.reshape(size, f, size, f, 3).mean((1, 3))
+    wd = os.path.join(TMP, "hdr_" + name)
+    os.makedirs(wd, exist_ok=True)
+    OpenEXR.File({"compression": OpenEXR.ZIP_COMPRESSION, "type": OpenEXR.scanlineimage},
+                 {"RGB": np.clip(a, 0, 65000).astype(np.float16)}).write(os.path.join(wd, "in.exr"))
+    tools = os.path.join(ROOT, "build", "tools", "basisu")
+    cmd = ["node", "--no-warnings", os.path.join(tools, "run.mjs"), os.path.join(tools, "basisu_st.wasm"), "-hdr_4x4",
+           "-file", "in.exr", "-output_file", "out.ktx2"] + (["-mipmap"] if mips else [])
+    r = subprocess.run(cmd, cwd=wd, env=ENV, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0 or not os.path.exists(os.path.join(wd, "out.ktx2")):
+        raise SystemExit("basisu failed for %s: %s" % (name, r.stdout[-2000:]))
+    shutil.move(os.path.join(wd, "out.ktx2"), out)
+    shutil.rmtree(wd, ignore_errors=True)
+    return name, os.path.getsize(out)
+
+
+def encode_log(job):
+    """EXR -> box-filtered to size -> 8 bit log encoding (v = log2(1 + c/c0) / k, dithered) -> UASTC LDR KTX2.
+    Returns the decode constants for the shader: c = c0 * (exp2(v * k) - 1)"""
+    src, out, size, mips, name = job
+    a = load_exr(src)
+    f = a.shape[0] // size
+    if f > 1:
+        a = a.reshape(size, f, size, f, 3).mean((1, 3))
+    R = max(0.5, float(np.percentile(a, 99.99)) * 1.25)
+    c0 = R / 16384.0
+    k = float(np.log2(1.0 + R / c0))
+    v = np.log2(1.0 + np.minimum(a, R) / c0) / k * 255.0
+    rng = np.random.default_rng(7)
+    v = v + (rng.random(v.shape, dtype=np.float32) + rng.random(v.shape, dtype=np.float32) - 1.0) * 0.5  # triangular dither
+    rgba = np.dstack([np.clip(v + 0.5, 0, 255).astype(np.uint8), np.full(v.shape[:2], 255, np.uint8)])
+    png = os.path.join(TMP, "log_%s.png" % name)
+    Image.fromarray(rgba, "RGBA").save(png)
+    ktx(png, out, False)
+    os.remove(png)
+    return name, os.path.getsize(out), [c0, k]
+
+
+def run_hdr_jobs(jobs):
+    from concurrent.futures import ThreadPoolExecutor
+    res = {}
+    with ThreadPoolExecutor(max_workers=int(os.environ.get("NIK_JOBS", "6"))) as ex:
+        for r in ex.map(encode_log if MOBILE else encode_hdr, jobs):
+            print("  lm %-24s %6d KB" % (r[0], r[1] // 1024), flush=True)
+            res[r[0]] = r[2:] and r[2]
+    return res
+
+
 lm_path = os.path.join(PUB, "lightmaps.json")
 if "lm" in ONLY:
     bm = json.load(open(os.path.join(BAKE, "bake_manifest.json")))
     lm_manifest = {"rgbmRange": RGBM_RANGE, "samples": bm.get("samples"), "objects": {}}
     PER_LIGHT_RE = re.compile(r"^(\w+?)_(\d+)$")
     present = set(json.load(open(os.path.join(SRC, "objects.json")))) if os.path.exists(os.path.join(SRC, "objects.json")) else None
+    hdr_jobs = []
+    logs = []
     for obj, info in bm["objects"].items():
         if present is not None and obj not in present:
             continue
@@ -117,25 +181,26 @@ if "lm" in ONLY:
                 urls.append("%s/lm/%s_%s_p%d.ktx2" % (PUB_NAME, obj, g, t // 4))
             entry.setdefault("perLight", {})[g] = {"count": n, "scale": S, "encoding": "sqrt", "urls": urls}
             print("  lm %-14s %-8s per-light x%d scale=%.3f" % (obj, g, n, S))
-        hdr_size = min(size, LM_MAX)
+        hdr_size = min(size, 2048 if (MOBILE and obj in MOBILE_BIG) else LM_MAX)
+        if MOBILE:
+            mips = False  # the mixer samples 1:1, the direct (big atlas) path is not used on phones
+            entry["mipmaps"] = False
         entry["size"] = hdr_size
         for g, f in sorted(info["files"].items()):
             if PER_LIGHT_RE.match(g):
                 continue
             out = os.path.join(LM_OUT, "%s_%s.ktx2" % (obj, g))
-            cmd = ["ktx", "create", "--format", "E5B9G9R9_UFLOAT_PACK32", "--zstd", "19"]
             gsize = min(hdr_size, LITE_ENV) if LITE and g == "env" else hdr_size
-            if gsize != size:
-                cmd += ["--width", str(gsize), "--height", str(gsize)]
-            if mips:
-                cmd.append("--generate-mipmap")
-            run(cmd + [os.path.join(BAKE, f["file"]), out])
+            hdr_jobs.append((os.path.join(BAKE, f["file"]), out, gsize, mips, "%s_%s" % (obj, g)))
             # alpha samples as 1: rgb * 1 * range / range = linear HDR
-            entry["groups"][g] = {"url": "%s/lm/%s_%s.ktx2" % (PUB_NAME, obj, g), "scale": RGBM_RANGE, "encoding": "rgb9e5",
-                                  "p50": f["stats"]["p50"], "p99": f["stats"]["p99"]}
-            scale = RGBM_RANGE
-            print("  lm %-14s %-8s scale=%.3f  %d KB" % (obj, g, scale, os.path.getsize(out) // 1024))
+            entry["groups"][g] = {"url": "%s/lm/%s_%s.ktx2" % (PUB_NAME, obj, g), "scale": 1.0 if MOBILE else RGBM_RANGE,
+                                  "encoding": "log" if MOBILE else "rgb9e5", "p50": f["stats"]["p50"], "p99": f["stats"]["p99"]}
+            logs.append((entry["groups"][g], "%s_%s" % (obj, g)))
         lm_manifest["objects"][obj] = entry
+    consts = run_hdr_jobs(hdr_jobs)
+    if MOBILE:
+        for grp, name in logs:
+            grp["log"] = consts[name]
     lm_manifest["vertex"] = json.load(open(os.path.join(SRC, "vertex_lm.json")))
     # sections written by the other steps (tex, glb) survive a lightmaps-only run
     if os.path.exists(lm_path):
@@ -162,6 +227,7 @@ if "tex" in ONLY and LITE:  # only the island onyx glows in the phone scene: its
         lm_manifest["textures"][m["origName"]] = "%s/tex/%s.ktx2" % (PUB_NAME, stem)
     json.dump(lm_manifest, open(lm_path, "w"), indent=1)
 elif "tex" in ONLY:
+    os.makedirs(TEX_OUT, exist_ok=True)
     lm_manifest = json.load(open(lm_path))
     # translucency colour maps + perforation mask (not part of glTF)
     mats = json.load(open(os.path.join(B, "materials_room", "materials.json"), encoding="utf-8"))["materials"]
@@ -173,43 +239,80 @@ elif "tex" in ONLY:
         stem = os.path.splitext(tr)[0]
         out = os.path.join(TEX_OUT, stem + ".ktx2")
         if not os.path.exists(out):
+            tsize = "1024" if MOBILE else "2048"
             run(["ktx", "create", "--format", "R8G8B8_SRGB", "--encode", "uastc", "--uastc-quality", "2", "--zstd", "18",
-                 "--generate-mipmap", os.path.join(B, "materials_room", "tex", tr), out])
-        lm_manifest["textures"][m.get("origName") or name] = "assets/tex/%s.ktx2" % stem
+                 "--width", tsize, "--height", tsize, "--generate-mipmap", os.path.join(B, "materials_room", "tex", tr), out])
+        lm_manifest["textures"][m.get("origName") or name] = "%s/tex/%s.ktx2" % (PUB_NAME, stem)
     run(["ktx", "create", "--format", "R8_UNORM", "--assign-tf", "linear", "--encode", "uastc", "--zstd", "18",
          "--generate-mipmap", os.path.join(B, "blender_room", "tex", "perf_mask.png"), os.path.join(TEX_OUT, "perf_mask.ktx2")])
-    lm_manifest["textures"]["perf_mask"] = "assets/tex/perf_mask.ktx2"
+    lm_manifest["textures"]["perf_mask"] = "%s/tex/perf_mask.ktx2" % PUB_NAME
     json.dump(lm_manifest, open(lm_path, "w"), indent=1)
 
 if "glb" in ONLY:
     src = os.path.join(SRC, "room.glb")
     t = [os.path.join(TMP, "s%d.glb" % i) for i in range(8)]
+    t3b = os.path.join(TMP, "s3b.glb")
     gt("optimize", src, t[1], "--compress", "false", "--texture-compress", "false", "--flatten", "false", "--join",
        "false", "--instance", "false", "--palette", "false", "--simplify", "false", "--prune-solid-textures", "true",
        "--prune-attributes", "false")  # lightmap UVs (TEXCOORD_1) / vertex lightmaps are used by runtime materials
+    # furniture lit per vertex: ~half the triangles at walking distance (ratio / error: NIK_SIMPLIFY="0.5,0.004")
+    ratio, err = os.environ.get("NIK_SIMPLIFY", "0.25,0.04" if MOBILE else "0.5,0.004").split(",")
+    if float(ratio) < 1:
+        simp = os.path.join(TMP, "s1_simplified.glb")
+        run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, ratio, err])
+        os.replace(simp, t[1])
+    if MOBILE:  # the rest of the geometry too (plants, static furniture, faucets), gently
+        simp = os.path.join(TMP, "s1_simplified.glb")
+        run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, "0.4", "0.02",
+             "Static_,Plants,Faucets"])
+        os.replace(simp, t[1])
     # big visible surfaces (walls, ceilings, floor, sofas, rugs...) and every fabric / leather: UASTC 2K;
     # the onyx hero stays 4K; small things ETC1S 1K
-    areas = json.load(open(os.path.join(SRC, "material_area.json")))
-    mats = json.load(open(os.path.join(B, "materials_room", "materials.json"), encoding="utf-8"))["materials"]
-    big = sorted(k for k, m in mats.items() if areas.get(k, 0) > 2.5 or m.get("surface"))
-    print("high-quality materials:", len(big))
-    pat_big = "*{%s}_*" % ",".join(big)
-    hero, nrm, base, small = ("2048", "2048", "2048", "1024") if not LITE else ("2048", "1024", "1024", "512")
-    gt("uastc", t[1], t[2], "--pattern", "*2147483589_*nrm*", "--level", "2", "--resize", hero, "--rdo",
-       "--rdo-lambda", "1.0", "--zstd", "18")
-    gt("uastc", t[2], t[3], "--pattern", "*2147483589*", "--level", "2", "--resize", "4096" if not LITE else hero, "--rdo",
-       "--rdo-lambda", "1.0", "--zstd", "18")
-    # every other normal map: 1K is plenty for bevels / grain (512 on phones)
-    gt("uastc", t[3], t[4], "--slots", "normalTexture", "--level", "1", "--resize", "1024" if not LITE else "512", "--rdo",
-       "--rdo-lambda", "2", "--zstd", "18")
-    gt("uastc", t[4], t[5], "--pattern", pat_big, "--slots", "baseColorTexture", "--level", "2", "--resize", base,
-       "--rdo", "--rdo-lambda", "3", "--zstd", "18")
-    gt("etc1s", t[5], t[6], "--quality", "255", "--resize", small)
-    # per-vertex light (RGBM in _NIKK/_NIKE): 8 bit is the precision it was encoded for
-    run(["node", os.path.join(ROOT, "pipeline", "web", "quantize_vertex_light.mjs"), t[6], t[7]])
-    final = os.path.join(TMP, "scene.glb")
-    gt("meshopt", t[7], final, "--level", "high")
-    print("scene.glb %.1f MB" % (os.path.getsize(final) / 2 ** 20))
+    if MOBILE:
+        # onyx hero 2K UASTC; floor stone / marble ETC1S 2K; everything else ETC1S 1K, normals 256 (bevel grain only)
+        gt("uastc", t[1], t[2], "--pattern", "*2147483589_*nrm*", "--level", "2", "--resize", "1024", "--rdo", "--rdo-lambda", "2",
+           "--zstd", "18")
+        gt("uastc", t[2], t[3], "--pattern", "*2147483589*", "--level", "2", "--resize", "2048", "--rdo", "--rdo-lambda", "3", "--zstd", "18")
+        gt("uastc", t[3], t[4], "--slots", "normalTexture", "--level", "0", "--resize", "256", "--rdo", "--rdo-lambda", "4", "--zstd", "18")
+        gt("etc1s", t[4], t[5], "--pattern", "*{%s}_*" % ",".join(sorted(HQ_MATERIALS)), "--slots", "baseColorTexture", "--quality", "255",
+           "--resize", "2048")
+        gt("etc1s", t[5], t[6], "--quality", "200", "--resize", "1024")
+        run(["node", os.path.join(ROOT, "pipeline", "web", "quantize_vertex_light.mjs"), t[6], t[7]])
+        final = os.path.join(TMP, "scene.glb")
+        gt("meshopt", t[7], final, "--level", "high")
+        print("scene.glb %.1f MB" % (os.path.getsize(final) / 2 ** 20))
+    if not MOBILE:
+        areas = json.load(open(os.path.join(SRC, "material_area.json")))
+        mats = json.load(open(os.path.join(B, "materials_room", "materials.json"), encoding="utf-8"))["materials"]
+        big = sorted(k for k, m in mats.items() if areas.get(k, 0) > 2.5 or m.get("surface"))
+        print("high-quality materials:", len(big))
+        # UASTC stays for what is seen from close by as a whole surface: onyx / translucent stone, the floor stone, marble;
+        # the rest of the big materials (fabric, leather, wood, paint...) is ETC1S at 2K: a fifth of the bytes
+        hq = [k for k in big if k in HQ_MATERIALS or mats[k].get("translucency")]
+        other = [k for k in big if k not in hq]
+        print("UASTC 2K:", hq, " ETC1S 2K:", len(other))
+        hero, nrm, base, small = ("2048", "2048", "2048", "1024") if not LITE else ("2048", "1024", "1024", "512")
+        gt("uastc", t[1], t[2], "--pattern", "*2147483589_*nrm*", "--level", "2", "--resize", hero, "--rdo",
+           "--rdo-lambda", "1.0", "--zstd", "18")
+        gt("uastc", t[2], t[3], "--pattern", "*2147483589*", "--level", "2", "--resize", "4096" if not LITE else hero, "--rdo",
+           "--rdo-lambda", "2.0", "--zstd", "18")
+        # every other normal map: 1K is plenty for bevels / grain (512 on phones)
+        # (big surfaces keep 1K normals; bevels and grain of everything else read the same at 512)
+        gt("uastc", t[3], t3b, "--pattern", "*{%s}_*nrm*" % ",".join(hq), "--level", "1", "--resize", "1024" if not LITE else "512",
+           "--rdo", "--rdo-lambda", "4", "--zstd", "18")
+        gt("uastc", t3b, t[4], "--slots", "normalTexture", "--level", "1", "--resize", "512", "--rdo",
+           "--rdo-lambda", "4", "--zstd", "18")
+        gt("uastc", t[4], t[5], "--pattern", "*{%s}_*" % ",".join(hq), "--slots", "baseColorTexture", "--level", "2",
+           "--resize", base, "--rdo", "--rdo-lambda", "4", "--zstd", "18")
+        t5b = os.path.join(TMP, "s5b.glb")
+        gt("etc1s", t[5], t5b, "--pattern", "*{%s}_*" % ",".join(other), "--slots", "baseColorTexture", "--quality", "255",
+           "--resize", base)
+        gt("etc1s", t5b, t[6], "--quality", "255", "--resize", small)
+        # per-vertex light (RGBM in _NIKK/_NIKE): 8 bit is the precision it was encoded for
+        run(["node", os.path.join(ROOT, "pipeline", "web", "quantize_vertex_light.mjs"), t[6], t[7]])
+        final = os.path.join(TMP, "scene.glb")
+        gt("meshopt", t[7], final, "--level", "high")
+        print("scene.glb %.1f MB" % (os.path.getsize(final) / 2 ** 20))
     # GitHub refuses files over 100 MB and hosts like Vercel skip Git LFS: ship the scene in plain-git pieces
     split_dir = os.path.join(PUB, "scene")  # noqa
     shutil.rmtree(split_dir, ignore_errors=True)

@@ -7,7 +7,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import { expectFiles, fetchBuffer, fetchParts, fileDone, reportBytes, useLoad } from '../loading'
-import { ASSETS, guardFullLoad, LITE } from '../lite'
+import { ASSETS, guardFullLoad, LITE, MOBILE } from '../lite'
 import { MIX_DEFAULTS, useStore, type FaucetFinish } from '../store'
 import { setupChandelier } from './Chandelier'
 import { buildWalkCollider } from './Walk'
@@ -27,7 +27,7 @@ export function getKTX2(gl: THREE.WebGLRenderer) {
 
 interface Assets {
   manifest: LightmapManifest
-  textures: Record<string, Partial<Record<GroupId, { tex: THREE.Texture; scale: number }>>>
+  textures: Record<string, Partial<Record<GroupId, { tex: THREE.Texture; scale: number; log?: [number, number] }>>>
   perLight: Record<string, Partial<Record<GroupId, { textures: THREE.Texture[]; scale: number; count: number }>>>
   extra: Record<string, THREE.Texture>
 }
@@ -52,7 +52,7 @@ async function loadAssets(gl: THREE.WebGLRenderer, manifest: LightmapManifest): 
       const src = info.groups[g]
       if (src)
         jobs.push(
-          loadLightmapTexture(() => loadKTX2(loader, src.url), info.mipmaps).then((tex) => (textures[obj][g] = { tex, scale: src.scale })),
+          loadLightmapTexture(() => loadKTX2(loader, src.url), info.mipmaps).then((tex) => (textures[obj][g] = { tex, scale: src.scale, log: src.log })),
         )
       const pl = info.perLight?.[g]
       if (pl) {
@@ -624,14 +624,14 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       const groups = GROUPS.filter((g) => lm[g] && !(isIsland && g === 'ostrov'))
       const mixer = new LightmapMixer(
         info.size,
-        groups.slice(0, 3).map((g) => ({ group: g, tex: lm[g]!.tex, scale: lm[g]!.scale })),
+        groups.slice(0, 3).map((g) => ({ group: g, tex: lm[g]!.tex, scale: lm[g]!.scale, log: lm[g]!.log })),
         range,
         pl ? { group: 'pol', ...pl } : undefined,
       )
       mixers.push(mixer)
       let ostrovMixer: LightmapMixer | null = null
       if (isIsland && lm.ostrov) {
-        ostrovMixer = new LightmapMixer(info.size, [{ group: 'ostrov', tex: lm.ostrov.tex, scale: lm.ostrov.scale }], range)
+        ostrovMixer = new LightmapMixer(info.size, [{ group: 'ostrov', tex: lm.ostrov.tex, scale: lm.ostrov.scale, log: lm.ostrov.log }], range)
         mixers.push(ostrovMixer)
       }
       o.traverse((m) => {
@@ -744,7 +744,7 @@ export function Kitchen() {
     const setup = setupScene(gltf.scene, assets)
     if (chandelier) {
       // hangers run up to the ceilings: ray-cast against the architecture (BVH set up by setupScene)
-      setupChandelier(chandelier.scene, gl, world.colliders, (m) => patchRoom(m, { kind: 'none' }))
+      setupChandelier(chandelier.scene, gl, world.colliders, (m) => patchRoom(m, { kind: 'none' }), MOBILE)
       if (!probeHide.includes(chandelier.scene)) probeHide.push(chandelier.scene)
     }
     return setup
@@ -769,7 +769,7 @@ export function Kitchen() {
     return m
   }, [])
   // phones: the floor mirror pass at a third of the (already capped) resolution
-  const reflection = useMemo(() => new PlanarReflection(LITE ? 0.33 : 0.5), [])
+  const reflection = useMemo(() => new PlanarReflection(LITE || MOBILE ? 0.33 : 0.5), [])
   const probes = useMemo(() => new RoomProbes(gl), [gl])
   useEffect(
     () => () => {

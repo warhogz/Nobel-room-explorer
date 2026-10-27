@@ -41,7 +41,10 @@ export const useLoad = create<LoadState>((set, get) => ({
   stageSince: performance.now(),
   setStage: (s) => {
     const order: LoadStage[] = ['download', 'decode', 'compile', 'warmup', 'ready']
-    if (order.indexOf(s) > order.indexOf(get().stage)) set({ stage: s, stageSince: performance.now() })
+    if (order.indexOf(s) > order.indexOf(get().stage)) {
+      performance.mark('nik-' + s)  // load timeline for profiling (performance.getEntriesByType('mark'))
+      set({ stage: s, stageSince: performance.now() })
+    }
     if (s === 'ready') guardFullLoad(false)
   },
 }))
@@ -120,3 +123,5 @@ function concat(chunks: Uint8Array[]) {
   }
   return out
 }
+
+;(window as unknown as { __load: typeof useLoad }).__load = useLoad  // dev probe: __load.getState()
