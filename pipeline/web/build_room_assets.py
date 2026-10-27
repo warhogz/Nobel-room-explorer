@@ -49,8 +49,10 @@ PART = 20 * 2 ** 20  # scene.glb pieces: under GitHub's 50 MB warning and Cloudf
 ENV = dict(os.environ)
 ENV["PATH"] = ";".join([r"C:\Program Files\nodejs", os.path.join(os.environ["APPDATA"], "npm"),
                         r"C:\Program Files\KTX-Software\bin", ENV.get("PATH", "")])
+# phones keep LockBorder too: Permissive with a large error scrambled the wood-block mosaic walls and frayed thin edges;
+# the mosaic (light per vertex of every block) keeps the desktop density
 if MOBILE:
-    ENV["NIK_SIMP_FLAGS"] = "Permissive"  # phones: let the simplifier collapse across borders / seams (~22 % of the triangles left)
+    ENV["NIK_SIMP_GENTLE"] = "M15025"
 ONLY = set(sys.argv[2].split(",")) if len(sys.argv) > 2 else {"lm", "glb", "tex"}  # "sizes" alone: only the byte table
 
 
@@ -256,14 +258,14 @@ if "glb" in ONLY:
        "false", "--instance", "false", "--palette", "false", "--simplify", "false", "--prune-solid-textures", "true",
        "--prune-attributes", "false")  # lightmap UVs (TEXCOORD_1) / vertex lightmaps are used by runtime materials
     # furniture lit per vertex: ~half the triangles at walking distance (ratio / error: NIK_SIMPLIFY="0.5,0.004")
-    ratio, err = os.environ.get("NIK_SIMPLIFY", "0.25,0.04" if MOBILE else "0.5,0.004").split(",")
+    ratio, err = os.environ.get("NIK_SIMPLIFY", "0.3,0.006" if MOBILE else "0.5,0.004").split(",")
     if float(ratio) < 1:
         simp = os.path.join(TMP, "s1_simplified.glb")
         run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, ratio, err])
         os.replace(simp, t[1])
     if MOBILE:  # the rest of the geometry too (plants, static furniture, faucets), gently
         simp = os.path.join(TMP, "s1_simplified.glb")
-        run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, "0.4", "0.02",
+        run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, "0.4", "0.006",
              "Static_,Plants,Faucets"])
         os.replace(simp, t[1])
     # big visible surfaces (walls, ceilings, floor, sofas, rugs...) and every fabric / leather: UASTC 2K;

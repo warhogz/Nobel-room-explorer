@@ -15,6 +15,9 @@ const [, , src, dst, ratioArg = '0.5', errArg = '0.004', nameArg = '^VX_'] = pro
 const ratio = Number(ratioArg)
 const error = Number(errArg)
 const pick = new RegExp(nameArg.startsWith('^') ? nameArg : '^(' + nameArg.split(',').join('|') + ')')  // 'Static_,Plants' or a regex
+// NIK_SIMP_GENTLE="M15025,..." materials whose look lives in the vertex light of many small parts (the wood-block
+// mosaic walls): simplified only as far as the desktop scene is (ratio 0.5, error 0.004)
+const gentle = (process.env.NIK_SIMP_GENTLE ?? '').split(',').filter(Boolean)
 await MeshoptSimplifier.ready
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS)
 const doc = await io.read(src)
@@ -60,8 +63,10 @@ for (const mesh of doc.getRoot().listMeshes()) {
       for (let k = 0; k < n; k++) weights.push(w)
       off += n
     }
-    const target = Math.max(3 * 300, Math.floor((indices.length * ratio) / 3) * 3)
-    const [out] = MeshoptSimplifier.simplifyWithAttributes(indices, pos, 3, attrs, stride, weights, null, target, error, (process.env.NIK_SIMP_FLAGS ?? 'LockBorder').split(',').filter(Boolean))
+    const soft = gentle.some((g) => (prim.getMaterial()?.getName() ?? '').includes(g))
+    const r = soft ? Math.max(ratio, 0.5) : ratio
+    const target = Math.max(3 * 300, Math.floor((indices.length * r) / 3) * 3)
+    const [out] = MeshoptSimplifier.simplifyWithAttributes(indices, pos, 3, attrs, stride, weights, null, target, soft ? Math.min(error, 0.004) : error,(process.env.NIK_SIMP_FLAGS ?? 'LockBorder').split(',').filter(Boolean))
     after += out.length / 3
     // compact: keep only referenced vertices
     const remap = new Int32Array(posAcc.getCount()).fill(-1)
