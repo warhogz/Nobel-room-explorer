@@ -20,6 +20,9 @@ import { LITE } from './lite'
 import { adaptiveHeld, DPR_FORCED, DPR_MAX, DPR_MIN, DPR_START, holdAdaptive } from './quality'
 import { Diag, DIAG } from './three/Diag'
 
+const AA = new URLSearchParams(location.search).get('aa') ?? 'both'
+const AA_MSAA = AA === 'both' || AA === 'msaa'
+const AA_SMAA = AA === 'both' || AA === 'smaa'
 const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 import { CompareRender, RenderPeek } from './ui/Compare'
 import './App.css'
@@ -30,11 +33,13 @@ function PostFX() {
   useEffect(() => effect.setParams(tm), [effect, tm])
   useFrame(() => effect.setLight(live.light))
   return (
-    <EffectComposer frameBufferType={THREE.HalfFloatType} multisampling={0}>
+    // hardware MSAA on the scene pass (thin slats, floor joints and table edges no longer crawl when the camera moves;
+    // SMAA alone only smooths still edges), SMAA on top for the shading edges. ?aa=msaa|smaa|none for A/B tests
+    <EffectComposer frameBufferType={THREE.HalfFloatType} multisampling={AA_MSAA ? 4 : 0}>
       {/* glare in scene-linear HDR, only from real light sources (LEDs, glowing onyx peaks), then tone mapping */}
       <Bloom intensity={0.5} luminanceThreshold={2.6} luminanceSmoothing={0.4} mipmapBlur radius={0.7} blendFunction={BlendFunction.ADD} />
       <primitive object={effect} />
-      <SMAA />
+      <>{AA_SMAA && <SMAA />}</>
     </EffectComposer>
   )
 }
