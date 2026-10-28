@@ -135,6 +135,9 @@ export const floorUniforms = {
   nikReflBlur: { value: null as THREE.Texture | null },
   nikReflMatrix: { value: new THREE.Matrix4() },
   nikReflStrength: { value: 1.2 },
+  // the daylight baked onto the travertine came out warmer than in Corona (the hall floor read yellow while the walls
+  // matched; measured on Corona camera 28): a cooler tint on the travertine's daylight group only
+  nikFloorE: { value: new THREE.Vector3(0.85, 1.18, 1.8) },
 }
 
 /**
@@ -162,6 +165,8 @@ interface PatchOpts {
   ostrov?: THREE.Texture
   envLm?: { tex: THREE.Texture; sK: number; sE: number }
   floor?: boolean
+  /** travertine: its baked daylight gets the cooler floor tint (floorUniforms.nikFloorE) */
+  dayTint?: boolean
   perforated?: THREE.Texture
   /** "island only" role: kept, the floor disc, or (default) the room that dissolves */
   iso?: 'keep' | 'floor' | 'room'
@@ -191,7 +196,7 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
       sh.uniforms.nikSK = { value: o.envLm.sK }
       sh.uniforms.nikSE = { value: o.envLm.sE }
     }
-    if (o.floor) Object.assign(sh.uniforms, floorUniforms)
+    if (o.floor || o.dayTint) Object.assign(sh.uniforms, floorUniforms)
     if (o.perforated) sh.uniforms.nikPerf = { value: o.perforated }
     const iso = o.iso ?? 'room'
     if (iso !== 'keep') Object.assign(sh.uniforms, isoUniforms)
@@ -220,6 +225,7 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
     if (o.kind === 'vertex') fHead += 'varying vec3 vNikIrr;\n'
     if (o.envLm) fHead += 'uniform sampler2D nikLmE;\nuniform float nikSK;\nuniform float nikSE;\nuniform vec3 nikWK;\nuniform vec3 nikWE;\nuniform float nikRange;\n'
     if (o.ostrov) fHead += 'uniform sampler2D nikOstrov;\n'
+    if (o.dayTint) fHead += 'uniform vec3 nikFloorE;\n'
     if (o.floor) fHead += 'varying vec4 vNikRefl;\nuniform sampler2D nikReflSharp;\nuniform sampler2D nikReflBlur;\nuniform float nikReflStrength;\n'
     if (o.perforated) fHead += 'uniform sampler2D nikPerf;\n'
     let isoCut = ''
@@ -267,6 +273,8 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
          radiance += iblRadiance * mix( 1.0, clamp( sqrt( nikL / nikSORef ), 0.08, 1.0 ), nikSOAmt );`,
       )
     }
+    // travertine in the big (hall) atlases, mixed here; the kitchen floor matched Corona already
+    if (o.dayTint) maps = maps.replace('/ nikSE * nikWE )', '/ nikSE * nikWE * nikFloorE )')
     sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', maps)
 
     if (o.ostrov) {
@@ -326,7 +334,7 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
       )
     }
   }
-  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ?? '', o.shade ?? ''].join('-')
+  const key = ['nik', o.kind, o.envLm ? 'e' : '', o.ostrov ? 'o' : '', o.floor ? 'f' : '', o.dayTint ? 't' : '', o.perforated ? 'p' : '', o.iso ?? 'room', o.hollow ?? '', o.shade ?? ''].join('-')
   mat.customProgramCacheKey = () => key
 }
 
@@ -429,6 +437,20 @@ const WINDOW_GLASS = new Set(['glass clear', 'Glass'])
 const WIN_DAY = new THREE.Color(1.0, 0.97, 0.92)
 // evening: a deep-blue dusk behind the panes (pure black read as holes in the high windows), mirroring the warm room
 const WIN_DUSK = new THREE.Color(0.35, 0.5, 1.0)
+/** openings to the cut-off villa: [plane axis, plane coordinate (just inside the wall), u range along the wall
+ *  (z for an x plane, x for a z plane), floor to head] in metres, three space */
+const OPENINGS: [axis: 'x' | 'z', at: number, u0: number, u1: number, y0: number, y1: number][] = [
+  ['x', -3.77, -5.5, 1.2, -0.05, 2.7], // kitchen end: the three doorways
+  ['x', -3.77, 1.6, 5.35, -0.05, 2.7],
+  ['x', -3.77, 5.5, 6.5, -0.05, 4.0],
+  ['x', 17.02, -5.8, -3.05, -0.05, 4.0], // hall end, beside the stairs
+  ['x', 17.32, -2.75, -2.55, 2.4, 3.85], // slits above the hall end wall
+  ['x', 17.32, 2.55, 2.75, 2.4, 3.85],
+  ['z', 6.47, 14.75, 17.35, -0.05, 2.4], // the stairs
+  ['z', 5.52, 3.1, 3.55, -0.05, 0.8], // low gaps under the glass
+  ['z', 5.52, 5.9, 6.35, -0.05, 0.8],
+]
+
 function toWindow(src: THREE.MeshStandardMaterial) {
   const m = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(0.02, 0.02, 0.022),
@@ -546,7 +568,7 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
       mat.lightMapIntensity = Math.PI
     }
     const perforated = nik.perforated ? assets.extra.perf_mask : undefined
-    patchRoom(mat, { kind, perforated, ...extra })
+    patchRoom(mat, { kind, perforated, dayTint: /^travertine/.test(nik.orig ?? ''), ...extra })
     for (const t of [mat.map, mat.normalMap, mat.roughnessMap, mat.metalnessMap, mat.emissiveMap]) if (t) t.anisotropy = maxAniso
     if (mat.normalMap) mat.normalScale.multiplyScalar(RELIEF[nik.orig ?? ''] ?? (nik.surface === 'fabric' ? 0.7 : 1.0))
     // how much each kind of surface mirrors the room: metals live on reflections, textiles barely reflect
@@ -687,6 +709,28 @@ function setupScene(root: THREE.Object3D, assets: Assets): Setup {
     own.customProgramCacheKey = fm.customProgramCacheKey
     f.material = own
     anchors.faucet = new THREE.Box3().setFromObject(f).getCenter(new THREE.Vector3())
+  }
+  // doorways into the cut-off villa: panes like the panoramic windows (daylight glow, dark by night) instead of the
+  // backdrop. Found by casting rays out of the room (dev: exits of rays that leave without a hit), three space
+  if (!LITE && !root.getObjectByName('Static_Openings')) {
+    const panes = new THREE.Group()
+    panes.name = 'Static_Openings' // "Static": architecture, so the walker and the orbit camera stop at them
+    const pane = new THREE.PlaneGeometry(1, 1)
+    for (const [axis, at, u0, u1, y0, y1] of OPENINGS) {
+      const mat = toWindow(new THREE.MeshStandardMaterial({ name: 'opening' }))
+      windows.push(mat)
+      const m = new THREE.Mesh(pane, mat)
+      // a little oversize, so no crack along the jambs shows the backdrop
+      m.scale.set(u1 - u0 + 0.06, y1 - y0 + 0.06, 1)
+      m.position.y = (y0 + y1) / 2
+      if (axis === 'x') {
+        m.position.set(at, m.position.y, (u0 + u1) / 2)
+        m.rotation.y = Math.PI / 2
+      } else m.position.set((u0 + u1) / 2, m.position.y, at)
+      panes.add(m)
+      glass.push(m) // fades with the windows in "island only"
+    }
+    root.add(panes)
   }
   // what is solid: architecture stops the orbit camera; the walker also bumps into the island and furniture.
   // Only meshes that are ever ray-cast get a BVH; the dense furniture is skipped by pointer rays altogether.
