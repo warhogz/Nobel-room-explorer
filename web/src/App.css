@@ -327,19 +327,11 @@ button { font: inherit; }
 .slider em { font-style: normal; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 /* ---------- touch-only pieces (hidden on desktop) ---------- */
-.scrim, .faucetbtn, .ghint, .finish__grab { display: none; }
+.faucetbtn, .ghint, .finish__grab { display: none; }
 
 /* ---------- small screens: centred mark on top, one glass dock at the bottom ---------- */
 @media (max-width: 760px) {
   .app { --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); --dock-b: max(14px, calc(var(--safe-b) + 6px)); }
-
-  /* soft shade behind the mark and the dock so they read over any part of the scene */
-  .scrim { display: block; position: absolute; left: 0; right: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease-out); }
-  .scrim.ui--on { opacity: 1; transform: none; filter: none; }
-  .scrim--top { top: 0; height: calc(150px + var(--safe-t)); background: linear-gradient(rgba(10, 8, 7, 0.82), rgba(10, 8, 7, 0.45) 45%, transparent); }
-  .scrim--bottom { bottom: 0; height: calc(170px + var(--safe-b)); background: linear-gradient(transparent, rgba(10, 8, 7, 0.5) 50%, rgba(10, 8, 7, 0.85)); }
-  .app--light .scrim--top { background: linear-gradient(rgba(247, 242, 235, 0.85), transparent); }
-  .app--light .scrim--bottom { background: linear-gradient(transparent, rgba(247, 242, 235, 0.85)); }
 
   .brand { top: calc(var(--safe-t) + 26px); left: 0; right: 0; display: grid; justify-items: center; }
   .brand__logo { height: 40px; margin-left: 0; }
@@ -422,3 +414,6 @@ button { font: inherit; }
   .views__compare { display: none; }
   .brand__sub { color: var(--ink-2); font-weight: 600; }
 }
+
+/* ?diag: quality diagnostics */
+.diag { position: fixed; left: 8px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 50; margin: 0; padding: 6px 8px; font: 11px/1.35 ui-monospace, Menlo, Consolas, monospace; color: #e8e2d8; background: rgba(12, 10, 8, 0.72); border-radius: 6px; pointer-events: none; white-space: pre; }

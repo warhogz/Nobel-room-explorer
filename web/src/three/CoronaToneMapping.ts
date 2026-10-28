@@ -87,12 +87,18 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   vec3 c = tonemap(inputColor.rgb * mix(1.0, dayExposure, lightMode));
   vec2 d = (uv - 0.5) * 2.0;
   c *= max(0.0, 1.0 - vignette * dot(d, d) * 0.5);
-  // fine animated film grain in display space (also dithers the gradients); a bit stronger in the shadows
-  vec2 gp = gl_FragCoord.xy + vec2(fract(time * 7.13) * 431.0, fract(time * 3.71) * 197.0);
-  float n = fract(sin(dot(gp, vec2(12.9898, 78.233))) * 43758.5453);
+  // static dither of one 8 bit step in display space (no banding in the dark gradients, no crawling noise when the
+  // camera moves: interleaved gradient noise fixed to the screen)
   vec3 sc = toSrgb(c);
-  float gAmt = grain * (1.15 - 0.5 * dot(sc, vec3(0.333)));
-  c = toLin(clamp(sc + (n - 0.5) * gAmt, 0.0, 1.0));
+  float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  sc += (ign - 0.5) / 255.0;
+  // optional animated film grain (off by default), a bit stronger in the shadows
+  if (grain > 0.0) {
+    vec2 gp = gl_FragCoord.xy + vec2(fract(time * 7.13) * 431.0, fract(time * 3.71) * 197.0);
+    float n = fract(sin(dot(gp, vec2(12.9898, 78.233))) * 43758.5453);
+    sc += (n - 0.5) * grain * (1.15 - 0.5 * dot(sc, vec3(0.333)));
+  }
+  c = toLin(clamp(sc, 0.0, 1.0));
   outputColor = vec4(c, 1.0);
 }
 `
@@ -185,7 +191,7 @@ export class CoronaToneMappingEffect extends Effect {
         ['shadowsK', new THREE.Uniform(0)],
         ['hc2', new THREE.Uniform(1)],
         ['lightMode', new THREE.Uniform(1)],
-        ['grain', new THREE.Uniform(0.028)],
+        ['grain', new THREE.Uniform(0)],
         // daylight grade: a touch darker than the warm night so the HDRI day reads natural, not blown out
         ['dayExposure', new THREE.Uniform(Math.pow(2, -0.45))],
       ]),

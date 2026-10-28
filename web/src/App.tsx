@@ -16,7 +16,9 @@ import { STAGE_SPAN, useLoad } from './loading'
 const LOGO = `${import.meta.env.BASE_URL}logo.svg`
 import { IsolateButton, Joystick, WalkButton, WalkHint } from './ui/WalkUI'
 import { FINISHES, GROUP_LABELS, PRESETS, useStore, type PresetId } from './store'
-import { LITE, MOBILE } from './lite'
+import { LITE } from './lite'
+import { adaptiveHeld, DPR_FORCED, DPR_MAX, DPR_MIN, DPR_START, holdAdaptive } from './quality'
+import { Diag, DIAG } from './three/Diag'
 
 const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 import { CompareRender, RenderPeek } from './ui/Compare'
@@ -317,8 +319,6 @@ function UI() {
       <DevPanel />
       <CompareRender />
       <Tooltip />
-      <div className={`scrim scrim--top ${ready}`} aria-hidden />
-      <div className={`scrim scrim--bottom ${ready}`} aria-hidden />
       <header className={`brand ${ready}`}>
         <img className="brand__logo" src={LOGO} alt="Nobel" />
         <div className="brand__sub">{LITE ? 'Onyx island · table & stools' : 'Onyx island · Villa kitchen & hall'}</div>
@@ -348,13 +348,26 @@ export default function App() {
   const bright = useStore((s) => s.day)
   const walking = useStore((s) => s.mode === 'walk')
   const loaded = useLoad((s) => s.stage === 'ready')
-  // resolution follows the frame rate: a slow phone renders fewer pixels instead of stuttering
-  const dprMax = LITE || MOBILE ? 1.5 : 2
-  const [dprCap, setDprCap] = useState(dprMax)
+  // resolution follows the frame rate: a slow phone renders fewer pixels instead of stuttering, a strong one climbs to
+  // its native density. Only sustained trends count (two averaged windows in a row), never loading, shader warm-up,
+  // the day / evening switch or a camera preset
+  const [dpr, setDpr] = useState(DPR_START)
+  const trend = useRef(0)
+  const day = useStore((s) => s.day)
+  const preset = useStore((s) => s.presetNonce)
+  useEffect(() => void (loaded && holdAdaptive(4000)), [loaded])
+  useEffect(() => holdAdaptive(3000), [day, preset])
+  const step = (dir: number) => {
+    if (DPR_FORCED || useLoad.getState().stage !== 'ready' || adaptiveHeld()) return void (trend.current = 0)
+    trend.current = Math.sign(trend.current) === dir ? trend.current + dir : dir
+    if (Math.abs(trend.current) < 2) return
+    trend.current = 0
+    setDpr((c) => Math.min(DPR_MAX, Math.max(DPR_MIN, +(c + dir * 0.25).toFixed(2))))
+  }
   return (
     <div className={`app ${bright ? 'app--light' : ''} ${walking ? 'app--walk' : ''} ${loaded ? 'app--ready' : ''}`}>
       <Canvas
-        dpr={[0.65, dprCap]}
+        dpr={dpr}
         gl={{ antialias: false, alpha: true, toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: 'high-performance' }}
         camera={{ fov: 50, near: 0.02, far: 100, position: [-6.5, 3.6, 6.8] }}
         onCreated={({ gl, scene }) => {
@@ -367,9 +380,10 @@ export default function App() {
         <PerformanceMonitor
           bounds={() => [30, 52]}
           flipflops={4}
-          onDecline={() => setDprCap((c) => Math.max(0.65, c - 0.25))}
-          onIncline={() => setDprCap((c) => Math.min(dprMax, c + 0.25))}
+          onDecline={() => step(-1)}
+          onIncline={() => step(1)}
         />
+        {DIAG && <Diag />}
         <Suspense fallback={null}>
           <Kitchen />
           <FloorLamps />
