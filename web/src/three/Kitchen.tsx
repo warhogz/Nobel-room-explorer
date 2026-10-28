@@ -288,13 +288,43 @@ function patchRoom(mat: THREE.MeshStandardMaterial, o: PatchOpts) {
       )
     }
     if (o.perforated) {
-      // holes: dark cavities (same tile as the bevel normal map)
+      // holes with depth (same tile as the bevel normal map): the eye ray goes on into the sheet, so a slot shows its
+      // lit inner wall on the far side, darker with depth, and the dark backing behind it (parallax, no geometry)
       sh.fragmentShader = sh.fragmentShader
         .replace(
           '#include <roughnessmap_fragment>',
-          '#include <roughnessmap_fragment>\nfloat nikHole = texture2D( nikPerf, vNormalMapUv, -1.0 ).r;\nroughnessFactor = mix( 0.9, roughnessFactor, nikHole );',
+          `#include <roughnessmap_fragment>
+           float nikHole = texture2D( nikPerf, vNormalMapUv, -1.0 ).r;
+           float nikCav = 0.025;
+           {
+             // surface frame from screen derivatives: gradients of the tile uv in view space
+             vec3 q0 = dFdx( -vViewPosition ), q1 = dFdy( -vViewPosition );
+             vec2 s0 = dFdx( vNormalMapUv ), s1 = dFdy( vNormalMapUv );
+             vec3 n = normalize( cross( q0, q1 ) );
+             if ( dot( n, vViewPosition ) < 0.0 ) n = -n;
+             vec3 q1p = cross( q1, n ), q0p = cross( n, q0 );
+             float det = dot( q0, q1p );
+             vec3 gu = ( q1p * s0.x + q0p * s1.x ) / det;
+             vec3 gv = ( q1p * s0.y + q0p * s1.y ) / det;
+             vec3 d = normalize( -vViewPosition );
+             float c = max( dot( -d, n ), 0.2 );
+             // sideways travel of the ray over the sheet and the gap behind it (8 mm)
+             vec3 w = ( d + n * c ) / c * 0.008;
+             vec2 duv = vec2( dot( gu, w ), dot( gv, w ) );
+             // only while a slot covers a few pixels: further away the plain mask (no crawling)
+             float near = 1.0 - smoothstep( 0.03, 0.08, max( length( s0 ), length( s1 ) ) );
+             if ( near > 0.0 && nikHole < 0.99 ) {
+               float wall = 0.0;
+               for ( int i = 1; i <= 6; i++ ) {
+                 float t = float( i ) / 6.0;
+                 if ( textureGrad( nikPerf, vNormalMapUv + duv * t, s0, s1 ).r > 0.5 ) { wall = mix( 0.5, 0.08, t ); break; }
+               }
+               nikCav = mix( nikCav, max( wall, nikCav ), near );
+             }
+           }
+           roughnessFactor = mix( 0.75, roughnessFactor, nikHole );`,
         )
-        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor *= nikHole;\ndiffuseColor.rgb *= mix( 0.02, 1.0, nikHole );')
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor *= nikHole;\ndiffuseColor.rgb *= mix( nikCav, 1.0, nikHole );')
     }
     if (o.floor) {
       sh.fragmentShader = sh.fragmentShader.replace(
@@ -814,6 +844,22 @@ export function Kitchen() {
   }, [])
   // phones: the floor mirror pass at a third of the (already capped) resolution
   const reflection = useMemo(() => new PlanarReflection(LITE || MOBILE ? 0.33 : 0.5), [])
+  // left out of the mirror pass: the floors themselves and every small object (a cup, a tap, a cushion tassel: in the
+  // blurred honed-stone reflection they are a few pixels of nothing, but each is a draw call and its triangles)
+  const mirrorHide = useMemo(() => {
+    const out: THREE.Object3D[] = [...floors]
+    const sphere = new THREE.Sphere()
+    for (const root of [gltf.scene, chandelier?.scene]) {
+      root?.updateMatrixWorld(true)
+      root?.traverse((m) => {
+        if (!(m instanceof THREE.Mesh) || floors.includes(m)) return
+        m.geometry.computeBoundingSphere()
+        sphere.copy(m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld)
+        if (sphere.radius < 0.15 || m.name === 'Chandelier_hangers') out.push(m)
+      })
+    }
+    return out
+  }, [gltf, chandelier, floors])
   const probes = useMemo(() => new RoomProbes(gl), [gl])
   useEffect(
     () => () => {
@@ -978,7 +1024,7 @@ export function Kitchen() {
     // mirror pass for the honed travertine floor (rendered before the main pass)
     reflection.setSize(size.width * dpr, size.height * dpr)
     camera.updateMatrixWorld()
-    reflection.update(gl, scene, camera, floors)
+    reflection.update(gl, scene, camera, mirrorHide)
     floorUniforms.nikReflSharp.value = reflection.sharp.texture
     floorUniforms.nikReflBlur.value = reflection.blurred.texture
     floorUniforms.nikReflMatrix.value.copy(reflection.textureMatrix)

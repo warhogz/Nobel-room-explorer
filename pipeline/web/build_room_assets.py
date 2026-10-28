@@ -263,11 +263,11 @@ if "glb" in ONLY:
         simp = os.path.join(TMP, "s1_simplified.glb")
         run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, ratio, err])
         os.replace(simp, t[1])
-    if MOBILE:  # the rest of the geometry too (plants, static furniture, faucets), gently
-        simp = os.path.join(TMP, "s1_simplified.glb")
-        run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp, "0.4", "0.006",
-             "Static_,Plants,Faucets"])
-        os.replace(simp, t[1])
+    # the rest of the geometry too (plants, static furniture, faucets), gently; on desktops within ~1-2 mm of the model
+    simp = os.path.join(TMP, "s1_simplified.glb")
+    run(["node", "--max-old-space-size=16000", os.path.join(ROOT, "pipeline", "web", "simplify_furniture.mjs"), t[1], simp,
+         "0.4" if MOBILE else "0.6", "0.006" if MOBILE else "0.002", "Static_,Plants,Faucets"])
+    os.replace(simp, t[1])
     # big visible surfaces (walls, ceilings, floor, sofas, rugs...) and every fabric / leather: UASTC 2K;
     # the onyx hero stays 4K; small things ETC1S 1K
     if MOBILE:
